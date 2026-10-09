@@ -868,3 +868,117 @@ th {
 .stats-device h3 {
   margin: 0 0 0.6rem;
 }
+
+/* Compact account menu */
+.account-bar {
+  display: flex;
+  justify-content: flex-end;
+  margin-bottom: 18px;
+}
+.account-menu-wrapper {
+  position: relative;
+  z-index: 30;
+}
+.account-trigger {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  border: 1px solid #dce3ed;
+  border-radius: 40px;
+  padding: 5px 10px 5px 5px;
+  background: white;
+  color: #25334a;
+}
+.account-trigger .avatar {
+  color: white;
+}
+.account-menu {
+  position: absolute;
+  right: 0;
+  top: calc(100% + 8px);
+  width: 210px;
+  border: 1px solid #e0e6ef;
+  border-radius: 14px;
+  background: white;
+  box-shadow: 0 14px 35px #14233b25;
+  padding: 7px;
+}
+.account-menu-user {
+  display: grid;
+  padding: 10px 12px;
+  border-bottom: 1px solid #e0e6ef;
+}
+.account-menu-user small {
+  color: #8290a2;
+}
+.account-menu button {
+  display: flex;
+  width: 100%;
+  align-items: center;
+  gap: 11px;
+  background: transparent;
+  border: 0;
+  color: #25334a;
+  border-radius: 9px;
+  padding: 12px;
+  text-align: left;
+}
+.account-menu button:hover {
+  background: #eff3fa;
+}
+@media (max-width: 900px) {
+  .account-bar {
+    margin-bottom: 12px;
+  }
+}
+
+/* Account control stays in the dark header at every screen size. */
+.account-bar {
+  position: fixed;
+  top: 26px;
+  right: 32px;
+  z-index: 100;
+  margin: 0;
+}
+.account-trigger {
+  gap: 10px;
+  padding: 5px 12px 5px 5px;
+  border: 1px solid #40546d;
+  background: #263951;
+  color: #fff;
+  border-radius: 12px;
+  text-align: left;
+}
+.account-trigger:hover,
+.account-trigger:focus-visible {
+  background: #314760;
+}
+.account-identity {
+  display: grid;
+  gap: 2px;
+  min-width: 0;
+}
+.account-identity strong {
+  font-size: 14px;
+  line-height: 1.15;
+}
+.account-identity small {
+  color: #a5b3c9;
+  font-size: 11px;
+  line-height: 1.15;
+}
+@media (max-width: 900px) {
+  .account-bar {
+    top: 14px;
+    right: 15px;
+  }
+  .brand {
+    min-height: 62px;
+    padding-right: 170px;
+  }
+}
+@media (min-width: 901px) {
+  main {
+    padding-top: 104px;
+  }
+}

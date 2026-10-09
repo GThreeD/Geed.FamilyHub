@@ -11,8 +11,6 @@ type BonusViewProps = {
   setSelected: (id: string) => void;
   bonus: number;
   setBonus: (minutes: number) => void;
-  expires: number;
-  setExpires: (minutes: number) => void;
   canEdit: boolean;
   act: (action: () => Promise<unknown>) => Promise<void>;
 };
@@ -24,8 +22,6 @@ export default function BonusView({
   setSelected,
   bonus,
   setBonus,
-  expires,
-  setExpires,
   canEdit,
   act,
 }: BonusViewProps) {
@@ -33,7 +29,7 @@ export default function BonusView({
   const remainingMinutes = Math.round((status[selected]?.bonus_remaining_seconds || 0) / 60);
 
   function grantBonus() {
-    const expiresAt = new Date(Date.now() + expires * 60000).toISOString();
+    const expiresAt = new Date(Date.now() + 7 * 24 * 60 * 60000).toISOString();
     void act(() => BonusService.grant(selected, bonus, expiresAt)).then(() =>
       setRevision((v) => v + 1),
     );
@@ -55,18 +51,6 @@ export default function BonusView({
       </label>
 
       <BonusWheel minutes={bonus} onChange={setBonus} disabled={!canEdit} />
-
-      <label>
-        Gültig für
-        <input
-          type="number"
-          min="1"
-          max="10080"
-          value={expires}
-          onChange={(event) => setExpires(+event.target.value)}
-        />
-        <span className="muted small">Minuten ab jetzt</span>
-      </label>
 
       <button
         disabled={!canEdit || !selected || bonus < 1}

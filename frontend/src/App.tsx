@@ -41,10 +41,10 @@ export default function App() {
     [users, US] = useState<ManagedUser[]>([]),
     [selected, SEL] = useState(''),
     [bonus, B] = useState(30),
-    [expires, EX] = useState(180),
     [error, E] = useState(''),
     [notice, NO] = useState(''),
-    [actionTvId, SET_ACTION_TV] = useState<string | null>(null);
+    [actionTvId, SET_ACTION_TV] = useState<string | null>(null),
+    [accountOpen, setAccountOpen] = useState(false);
   useEffect(() => {
     AuthService.setupStatus()
       .then((x) => {
@@ -134,9 +134,6 @@ export default function App() {
       ? [['devices', 'Geräte', <MonitorCog />] as [View, string, ReactNode]]
       : []),
     ...(user.role === 'admin'
-      ? [['updates', 'Updates', <Download />] as [View, string, ReactNode]]
-      : []),
-    ...(user.role === 'admin'
       ? [['users', 'Benutzer', <Users />] as [View, string, ReactNode]]
       : []),
     ...(canEdit ? [['settings', 'Einstellungen', <Settings />] as [View, string, ReactNode]] : []),
@@ -150,6 +147,60 @@ export default function App() {
           </span>
           <div>
             TV Control<small>HOME AUTOMATION</small>
+          </div>
+        </div>
+        <div className="account-bar">
+          <div className="account-menu-wrapper">
+            <button
+              type="button"
+              className="account-trigger"
+              aria-expanded={accountOpen}
+              aria-label="Benutzermenü"
+              onClick={() => setAccountOpen((value) => !value)}
+            >
+              <span className="avatar">{user.display_name.charAt(0).toUpperCase()}</span>
+              <span className="account-identity">
+                <strong>{user.display_name}</strong>
+                <small>{user.role}</small>
+              </span>
+            </button>
+            {accountOpen && (
+              <div className="account-menu">
+                <div className="account-menu-user">
+                  <strong>{user.display_name}</strong>
+                  <small>{user.role}</small>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setAccountOpen(false);
+                    void refresh();
+                  }}
+                >
+                  <RefreshCw size={17} /> Aktualisieren
+                </button>
+                {user.role === 'admin' && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      V('updates');
+                      setAccountOpen(false);
+                    }}
+                  >
+                    <Download size={17} /> Updates
+                  </button>
+                )}
+                <button
+                  type="button"
+                  onClick={() => {
+                    setAccountOpen(false);
+                    void logout();
+                  }}
+                >
+                  <LogOut size={17} /> Abmelden
+                </button>
+              </div>
+            )}
           </div>
         </div>
         <nav>
@@ -170,30 +221,8 @@ export default function App() {
             </button>
           ))}
         </nav>
-        <div className="aside-bottom">
-          <div className="identity">
-            <span className="avatar">{user.display_name.charAt(0).toUpperCase()}</span>
-            <div>
-              {user.display_name}
-              <small>{user.role}</small>
-            </div>
-          </div>
-          <button className="nav" onClick={logout}>
-            <LogOut /> Abmelden
-          </button>
-        </div>
       </aside>
       <main>
-        <header>
-          <div>
-            <span className="eyebrow">SAMSUNG TV CONTROL</span>
-            <h1>{nav.find(([v]) => v === view)?.[1]}</h1>
-            <p className="muted">Verwalte Fernseher und Nutzungszeiten in deinem Heimnetz.</p>
-          </div>
-          <button className="secondary" onClick={() => void refresh()}>
-            <RefreshCw size={17} /> Aktualisieren
-          </button>
-        </header>
         {error && <div className="alert">{error}</div>}
         {notice && <div className="notice">{notice}</div>}
         {view === 'dashboard' && (
@@ -216,8 +245,6 @@ export default function App() {
             setSelected={SEL}
             bonus={bonus}
             setBonus={B}
-            expires={expires}
-            setExpires={EX}
             canEdit={canEdit}
             act={act}
           />
