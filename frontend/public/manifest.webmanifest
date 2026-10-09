@@ -1,0 +1,14 @@
+{
+  "name": "Samsung TV Control",
+  "short_name": "TV Control",
+  "description": "Lokale TV-Zeitsteuerung",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "background_color": "#f5f7fa",
+  "theme_color": "#111d2e",
+  "icons": [
+    { "src": "/pwa-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any maskable" },
+    { "src": "/pwa-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any maskable" }
+  ]
+}
