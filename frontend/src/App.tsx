@@ -10,6 +10,7 @@ import {
   RefreshCw,
   BarChart3,
   MonitorCog,
+  Download,
 } from 'lucide-react';
 import type { TV, TVStatus, User } from './api';
 import { AuthService } from './services/AuthService';
@@ -25,8 +26,10 @@ import UsersView from './views/UsersView';
 import DevicesView from './views/DevicesView';
 import StatisticsView from './views/StatisticsView';
 import TvActionsModal from './components/TvActionsModal';
+import UpdateView from './views/UpdateView';
 
-type View = 'dashboard' | 'schedule' | 'bonus' | 'users' | 'settings' | 'devices' | 'statistics';
+type View =
+  'dashboard' | 'schedule' | 'bonus' | 'users' | 'settings' | 'devices' | 'statistics' | 'updates';
 
 export default function App() {
   const [user, U] = useState<User | null>(null),
@@ -60,24 +63,37 @@ export default function App() {
     try {
       const all = await TvService.list();
       T(all);
-      if (!selected && all.length) SEL(all[0].tv_id);
-      const entries = await Promise.all(
-        all.map(async (t) => [t.tv_id, await TvService.status(t.tv_id)] as const),
+      SEL((previous) =>
+        all.some((tv) => tv.tv_id === previous) ? previous : (all[0]?.tv_id ?? ''),
       );
-      ST(Object.fromEntries(entries));
-      if (user.role !== 'viewer') {
-        SE(await SettingsService.get());
-      }
+      if (user.role !== 'viewer') SE(await SettingsService.get());
       if (user.role === 'admin') US(await UserService.list());
+      await refreshStatus(all);
     } catch (e) {
       E((e as Error).message);
     }
   }
+  async function refreshStatus(devices: TV[]) {
+    const results = await Promise.allSettled(
+      devices.map(async (tv) => [tv.tv_id, await TvService.status(tv.tv_id)] as const),
+    );
+    ST((previous) => {
+      const next = { ...previous };
+      for (const result of results) {
+        if (result.status === 'fulfilled') next[result.value[0]] = result.value[1];
+      }
+      return next;
+    });
+  }
   useEffect(() => {
+    if (!user) return;
     void refresh();
-    const timer = setInterval(() => void refresh(), 15000);
+  }, [user?.id]);
+  useEffect(() => {
+    if (!user || tvs.length === 0) return;
+    const timer = setInterval(() => void refreshStatus(tvs).catch(console.error), 15000);
     return () => clearInterval(timer);
-  }, [user]);
+  }, [user?.id, tvs]);
   async function act(f: () => Promise<unknown>) {
     E('');
     NO('');
@@ -116,6 +132,9 @@ export default function App() {
     ['statistics', 'Statistik', <BarChart3 />],
     ...(user.role === 'admin'
       ? [['devices', 'Geräte', <MonitorCog />] as [View, string, ReactNode]]
+      : []),
+    ...(user.role === 'admin'
+      ? [['updates', 'Updates', <Download />] as [View, string, ReactNode]]
       : []),
     ...(user.role === 'admin'
       ? [['users', 'Benutzer', <Users />] as [View, string, ReactNode]]
@@ -204,6 +223,7 @@ export default function App() {
           />
         )}
         {view === 'statistics' && <StatisticsView tvs={tvs} />}
+        {view === 'updates' && user.role === 'admin' && <UpdateView />}
         {view === 'devices' && user.role === 'admin' && <DevicesView tvs={tvs} act={act} />}
         {view === 'settings' && canEdit && settings && (
           <SettingsView settings={settings} setSettings={SE} act={act} />

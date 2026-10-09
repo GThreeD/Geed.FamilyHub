@@ -99,6 +99,23 @@ class DatabaseData:
             db.execute('INSERT INTO bonus(tv_id,granted_seconds,expires_at,created_at) VALUES(?,?,?,?)',
                        (tv_id,seconds,expires_at,created_at))
 
+    def list_bonus_grants(self, tv_id):
+        with self.connection() as db:
+            return [dict(row) for row in db.execute(
+                "SELECT id,granted_seconds,consumed_seconds,expires_at,created_at "
+                "FROM bonus WHERE tv_id=? ORDER BY id DESC LIMIT 100", (tv_id,))]
+
+    def revoke_bonus_grant(self, tv_id, grant_id):
+        with self.connection() as db:
+            row = db.execute("SELECT consumed_seconds,granted_seconds FROM bonus WHERE tv_id=? AND id=?", (tv_id,grant_id)).fetchone()
+            if row is None or row['consumed_seconds'] == row['granted_seconds']:
+                return False
+            if row['consumed_seconds'] == 0:
+                db.execute("DELETE FROM bonus WHERE tv_id=? AND id=?",(tv_id,grant_id))
+            else:
+                db.execute("UPDATE bonus SET granted_seconds=consumed_seconds WHERE tv_id=? AND id=?",(tv_id,grant_id))
+            return True
+
     def record_usage(self, tv_id, day, week, seconds, bonus_seconds, at):
         """Atomic usage + bonus consumption; never consume more bonus than remains."""
         if seconds <= 0:

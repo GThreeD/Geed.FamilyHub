@@ -70,6 +70,19 @@ class TVApi:
         self.schedules.add_bonus(tv_id,minutes,datetime.fromisoformat(expires_at))
         return self.get_status(tv_id)
 
+    def list_bonus(self, tv_id):
+        if self.tvs.get(tv_id) is None:
+            raise ValidationError('TV nicht gefunden')
+        return self.data.list_bonus_grants(tv_id)
+
+    def revoke_bonus(self, tv_id, grant_id):
+        if self.tvs.get(tv_id) is None:
+            raise ValidationError('TV nicht gefunden')
+        if not self.data.revoke_bonus_grant(tv_id,grant_id):
+            raise ValidationError('Bonusgutschrift nicht gefunden oder bereits verbraucht')
+        self.data.log_event(tv_id, datetime.now().astimezone().isoformat(), 'bonus_revoked', str(grant_id))
+        return {'ok':True}
+
     def get_events(self,tv_id,limit=100):
         if self.tvs.get(tv_id) is None:
             raise ValidationError('TV nicht gefunden')

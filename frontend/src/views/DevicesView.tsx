@@ -63,7 +63,10 @@ export default function DevicesView({ tvs, act }: Props) {
               value={value.ip}
               onChange={(e) => change('ip', e.target.value)}
             />
-            <button className="primary" onClick={() => void act(() => TvService.update({ ...tv, ...value }))}>
+            <button
+              className="primary"
+              onClick={() => void act(() => TvService.update({ ...tv, ...value }))}
+            >
               Speichern
             </button>
             <button

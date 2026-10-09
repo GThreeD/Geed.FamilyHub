@@ -1,4 +1,4 @@
-const CACHE_NAME = 'stc-v2.5.1-static';
+const CACHE_NAME = 'stc-v0.1.1-static';
 self.addEventListener('install', (event) => {
   event.waitUntil(caches.open(CACHE_NAME).then((cache) => cache.addAll(['/','/manifest.webmanifest'])));
   self.skipWaiting();

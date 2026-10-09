@@ -14,6 +14,8 @@ class HttpApi:
     def __init__(self, facade, settings, data, auth, static_root=None):
         self.facade,self.settings,self.data,self.auth=facade,settings,data,auth
         self.static_root=Path(static_root).resolve() if static_root else None
+        from app.services.update_service import UpdateService
+        self.updates=UpdateService(self.static_root.parent.parent if self.static_root else Path.cwd())
 
     def serve(self, host='127.0.0.1', port=8765):
         outer=self
@@ -124,6 +126,11 @@ class HttpApi:
                             raise ValidationError('mode erforderlich')
                         return self.reply({'lock':outer.facade.set_lock(parts[2],body['mode'])})
                     if method=='DELETE':return self.reply(outer.facade.clear_lock(parts[2]))
+                if len(parts)==4 and parts[:2]==['api','tvs'] and parts[3]=='bonus' and method=='GET':
+                    return self.reply(outer.facade.list_bonus(parts[2]))
+                if len(parts)==5 and parts[:2]==['api','tvs'] and parts[3]=='bonus' and method=='DELETE':
+                    outer.auth.require(user,'control')
+                    return self.reply(outer.facade.revoke_bonus(parts[2],int(parts[4])))
                 if len(parts)==4 and parts[:2]==['api','tvs']:
                     tv_id=parts[2]
                     if parts[3]=='status' and method=='GET':return self.reply(outer.facade.get_status(tv_id))
@@ -150,6 +157,15 @@ class HttpApi:
                 if path=='/api/settings' and method=='GET':return self.reply(outer.settings.get())
                 if path=='/api/settings' and method=='PUT':
                     outer.auth.require(user,'config');return self.reply(outer.settings.update(body))
+                if path=='/api/updates/latest' and method=='GET':
+                    outer.auth.require(user,'users')
+                    return self.reply(outer.updates.latest())
+                if path=='/api/updates/prepare' and method=='POST':
+                    outer.auth.require(user,'users')
+                    return self.reply(outer.updates.prepare())
+                if path=='/api/updates/install' and method=='POST':
+                    outer.auth.require(user,'users')
+                    return self.reply(outer.updates.install(),202)
                 if path=='/api/migrations' and method=='GET':
                     outer.auth.require(user,'users');return self.reply(outer.data.migration_history())
                 return self.reply({'error':'Nicht gefunden'},404)
