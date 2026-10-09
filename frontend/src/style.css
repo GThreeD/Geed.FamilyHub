@@ -84,7 +84,6 @@ nav {
   width: 18px;
   height: 18px;
 }
-.nav:hover,
 .nav.active {
   background: #263951;
   color: white;
@@ -705,14 +704,14 @@ th {
   flex-wrap: wrap;
 }
 @media (max-width: 760px) {
-  .desktop-admin {
-    display: none !important;
+  .device-fields,
+  .device-row {
+    grid-template-columns: minmax(0, 1fr);
+    align-items: stretch;
   }
-}
-
-@media (max-width: 760px) {
-  .desktop-nav {
-    display: none !important;
+  .device-row {
+    padding: 16px 0;
+    border-bottom: 1px solid #e0e6ef;
   }
 }
 
@@ -932,17 +931,21 @@ th {
   }
 }
 
-/* Account control stays in the dark header at every screen size. */
+/* The desktop account belongs at the bottom of the sidebar. */
 .account-bar {
-  position: fixed;
-  top: 26px;
-  right: 32px;
+  position: relative;
+  order: 3;
+  margin: auto 0 0;
+  justify-content: stretch;
   z-index: 100;
-  margin: 0;
+}
+.account-menu-wrapper {
+  width: 100%;
 }
 .account-trigger {
+  width: 100%;
   gap: 10px;
-  padding: 5px 12px 5px 5px;
+  padding: 8px;
   border: 1px solid #40546d;
   background: #263951;
   color: #fff;
@@ -967,18 +970,213 @@ th {
   font-size: 11px;
   line-height: 1.15;
 }
+.account-menu {
+  top: auto;
+  bottom: calc(100% + 8px);
+  left: 0;
+  right: auto;
+  color: #25334a;
+}
+.account-menu-user strong {
+  color: #25334a;
+}
+.account-menu-user small {
+  color: #51627b;
+}
+.account-menu .account-submenu {
+  padding-left: 34px;
+  font-size: 13px;
+  color: #344763;
+}
+.account-menu .account-submenu:hover {
+  color: #182333;
+}
+
+/* A visible gutter separates adjacent pages while dragging. */
+.pager-page {
+  flex: 0 0 100%;
+  width: 100%;
+  min-width: 0;
+  padding-inline: 12px;
+}
+
+/* Hover styles only apply to devices with a real mouse. */
+@media (hover: hover) and (pointer: fine) {
+  .nav:not(.active):hover {
+    background: #213149;
+    color: #e4edfa;
+  }
+}
+
 @media (max-width: 900px) {
   .account-bar {
+    position: absolute;
     top: 14px;
     right: 15px;
+    margin: 0;
+    width: auto;
+  }
+  .account-menu-wrapper,
+  .account-trigger {
+    width: auto;
+  }
+  .account-menu {
+    top: calc(100% + 8px);
+    bottom: auto;
+    right: 0;
+    left: auto;
   }
   .brand {
     min-height: 62px;
     padding-right: 170px;
   }
+  .pager-page {
+    padding-inline: 10px;
+  }
 }
+
+/* Keep the desktop account anchored to the visible sidebar, not the page end. */
 @media (min-width: 901px) {
-  main {
-    padding-top: 104px;
+  aside {
+    position: sticky;
+    top: 0;
+    height: 100vh;
+    height: 100dvh;
+    min-height: 0;
+  }
+  aside nav {
+    min-height: 0;
+    overflow-y: auto;
+  }
+  .account-bar {
+    flex-shrink: 0;
+  }
+}
+
+/* Separate device cards make each edit/save/delete action unambiguous. */
+.devices-layout {
+  display: grid;
+  gap: 28px;
+  width: 100%;
+  max-width: 1050px;
+}
+.device-section-heading,
+.device-card-heading {
+  display: flex;
+  align-items: center;
+  gap: 13px;
+}
+.device-section-heading h2,
+.device-list-heading h2,
+.device-card-heading h3 {
+  margin: 0;
+}
+.device-section-heading p {
+  margin: 5px 0 0;
+  color: #66768b;
+  font-size: 13px;
+}
+.device-heading-icon {
+  flex: none;
+  display: grid;
+  place-items: center;
+  width: 42px;
+  height: 42px;
+  border-radius: 12px;
+  background: #e9f0ff;
+  color: #326fe5;
+}
+.device-create-fields {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 16px;
+}
+.device-create-fields label,
+.device-edit-fields label {
+  min-width: 0;
+}
+.device-create-fields input,
+.device-edit-fields input {
+  width: 100%;
+}
+.device-add-button {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+.device-list-heading {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+  margin: 0 0 14px;
+}
+.device-list-heading span,
+.device-card-title small {
+  color: #63748c;
+  font-size: 12px;
+}
+.device-card-list {
+  display: grid;
+  gap: 16px;
+}
+.device-card-heading {
+  margin-bottom: 8px;
+}
+.device-card-title {
+  flex: 1;
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+.device-card-title small {
+  display: block;
+  margin-top: 4px;
+}
+.device-card-actions {
+  display: flex;
+  gap: 8px;
+  margin-left: auto;
+}
+.device-icon-button {
+  display: grid;
+  place-items: center;
+  width: 42px;
+  height: 42px;
+  border: 1px solid #dce5f2;
+  border-radius: 10px;
+  color: #2867d8;
+  background: #edf3ff;
+}
+.device-icon-button:focus-visible {
+  outline: 3px solid #a8c3fc;
+  outline-offset: 2px;
+}
+.device-delete-button {
+  color: #b42332;
+  border-color: #f4d5d9;
+  background: #fff2f3;
+}
+.device-icon-button:disabled {
+  opacity: 0.45;
+}
+.device-edit-fields {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 16px;
+}
+.device-unsaved {
+  color: #9a5a13;
+  font-size: 12px;
+  margin: 0;
+}
+@media (max-width: 760px) {
+  .device-create-fields,
+  .device-edit-fields {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 0;
+  }
+  .device-card,
+  .device-create-panel {
+    padding: 20px;
   }
 }

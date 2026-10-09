@@ -1,4 +1,4 @@
-import { useEffect, useState, type ReactNode } from 'react';
+import { useEffect, useRef, useState, type ReactNode, type TouchEvent } from 'react';
 import {
   LayoutDashboard,
   CalendarClock,
@@ -9,8 +9,8 @@ import {
   Tv,
   RefreshCw,
   BarChart3,
-  MonitorCog,
   Download,
+  MonitorCog,
 } from 'lucide-react';
 import type { TV, TVStatus, User } from './api';
 import { AuthService } from './services/AuthService';
@@ -45,6 +45,42 @@ export default function App() {
     [notice, NO] = useState(''),
     [actionTvId, SET_ACTION_TV] = useState<string | null>(null),
     [accountOpen, setAccountOpen] = useState(false);
+  const accountRef = useRef<HTMLDivElement>(null);
+  const swipeStart = useRef<{
+    x: number;
+    y: number;
+    active: boolean;
+    textField: boolean;
+    startedAt: number;
+  } | null>(null);
+  const pagerRef = useRef<HTMLDivElement>(null);
+  const tabRefs = useRef<Partial<Record<View, HTMLButtonElement | null>>>({});
+
+  useEffect(() => {
+    if (['dashboard', 'schedule', 'bonus', 'statistics'].includes(view)) {
+      tabRefs.current[view]?.scrollIntoView({
+        block: 'nearest',
+        inline: 'center',
+        behavior: 'smooth',
+      });
+    }
+  }, [view]);
+
+  useEffect(() => {
+    if (!accountOpen) return;
+    const closeOutside = (event: PointerEvent) => {
+      if (!accountRef.current?.contains(event.target as Node)) setAccountOpen(false);
+    };
+    const closeEscape = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') setAccountOpen(false);
+    };
+    document.addEventListener('pointerdown', closeOutside);
+    document.addEventListener('keydown', closeEscape);
+    return () => {
+      document.removeEventListener('pointerdown', closeOutside);
+      document.removeEventListener('keydown', closeEscape);
+    };
+  }, [accountOpen]);
   useEffect(() => {
     AuthService.setupStatus()
       .then((x) => {
@@ -130,14 +166,92 @@ export default function App() {
     ['schedule', 'Zeitpläne', <CalendarClock />],
     ['bonus', 'Bonuszeit', <Gift />],
     ['statistics', 'Statistik', <BarChart3 />],
-    ...(user.role === 'admin'
-      ? [['devices', 'Geräte', <MonitorCog />] as [View, string, ReactNode]]
-      : []),
-    ...(user.role === 'admin'
-      ? [['users', 'Benutzer', <Users />] as [View, string, ReactNode]]
-      : []),
-    ...(canEdit ? [['settings', 'Einstellungen', <Settings />] as [View, string, ReactNode]] : []),
   ];
+  const activeIndex = nav.findIndex(([tab]) => tab === view);
+  const isPagerView = activeIndex >= 0;
+  const tabWidth = () => pagerRef.current?.clientWidth || window.innerWidth;
+  function swipeTarget(target: EventTarget | null) {
+    const element = target instanceof Element ? target : null;
+    // Controls with their own gestures (e.g. sliders and the bonus wheel) stay protected.
+    if (
+      element?.closest(
+        'select, button, a, [role="slider"], [data-no-swipe], .modal, .wheel, [contenteditable="true"]',
+      )
+    )
+      return { blocked: true, textField: false };
+    const field = element?.closest('input, textarea');
+    if (field instanceof HTMLInputElement) {
+      const textTypes = ['text', 'search', 'email', 'url', 'tel', 'number', 'password'];
+      return { blocked: !textTypes.includes(field.type), textField: true };
+    }
+    return { blocked: false, textField: field instanceof HTMLTextAreaElement };
+  }
+  function onTouchStart(event: TouchEvent<HTMLElement>) {
+    if (event.touches.length !== 1 || actionTvId || accountOpen || !isPagerView) return;
+    const target = swipeTarget(event.target);
+    if (target.blocked) return;
+    swipeStart.current = {
+      x: event.touches[0].clientX,
+      y: event.touches[0].clientY,
+      active: false,
+      textField: target.textField,
+      startedAt: Date.now(),
+    };
+  }
+  function onTouchMove(event: TouchEvent<HTMLElement>) {
+    const start = swipeStart.current;
+    const track = pagerRef.current;
+    if (!start || !track || event.touches.length !== 1) return;
+    const dx = event.touches[0].clientX - start.x;
+    const dy = event.touches[0].clientY - start.y;
+    if (!start.active && Math.abs(dy) > Math.abs(dx)) {
+      swipeStart.current = null;
+      return;
+    }
+    // A short horizontal drag pages even over text inputs; long presses still select text.
+    if (start.textField && !start.active && Date.now() - start.startedAt > 450) {
+      swipeStart.current = null;
+      return;
+    }
+    const threshold = start.textField ? 28 : 12;
+    if (Math.abs(dx) > threshold && Math.abs(dx) > Math.abs(dy) * 1.25) start.active = true;
+    if (!start.active) return;
+    const boundary = (dx > 0 && activeIndex === 0) || (dx < 0 && activeIndex === nav.length - 1);
+    const offset = boundary ? dx * 0.2 : dx;
+    track.style.transition = 'none';
+    track.style.transform = `translate3d(${-(activeIndex * tabWidth()) + offset}px, 0, 0)`;
+  }
+  function onTouchEnd(event: TouchEvent<HTMLElement>) {
+    const start = swipeStart.current;
+    swipeStart.current = null;
+    if (!start || !start.active || !pagerRef.current || event.changedTouches.length !== 1) return;
+    const dx = event.changedTouches[0].clientX - start.x;
+    const next = activeIndex + (dx < 0 ? 1 : -1);
+    const shouldChange =
+      Math.abs(dx) > Math.min(90, tabWidth() * 0.22) && next >= 0 && next < nav.length;
+    const track = pagerRef.current;
+    track.style.transition = 'transform 240ms cubic-bezier(0.2, 0.75, 0.25, 1)';
+    track.style.transform = `translate3d(-${(shouldChange ? next : activeIndex) * tabWidth()}px, 0, 0)`;
+    if (shouldChange) {
+      V(nav[next][0]);
+      E('');
+      NO('');
+    }
+  }
+  function onTouchCancel() {
+    swipeStart.current = null;
+    if (pagerRef.current && isPagerView) {
+      pagerRef.current.style.transition = 'transform 240ms ease-out';
+      pagerRef.current.style.transform = `translate3d(-${activeIndex * tabWidth()}px, 0, 0)`;
+    }
+  }
+  function switchView(next: View) {
+    swipeStart.current = null;
+    V(next);
+    E('');
+    NO('');
+    setAccountOpen(false);
+  }
   return (
     <div className="app">
       <aside>
@@ -150,7 +264,7 @@ export default function App() {
           </div>
         </div>
         <div className="account-bar">
-          <div className="account-menu-wrapper">
+          <div className="account-menu-wrapper" ref={accountRef}>
             <button
               type="button"
               className="account-trigger"
@@ -179,12 +293,45 @@ export default function App() {
                 >
                   <RefreshCw size={17} /> Aktualisieren
                 </button>
+                {canEdit && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      switchView('settings');
+                      setAccountOpen(false);
+                    }}
+                  >
+                    <Settings size={17} /> Einstellungen
+                  </button>
+                )}
+                {user.role === 'admin' && (
+                  <button
+                    type="button"
+                    className="account-submenu"
+                    onClick={() => {
+                      switchView('devices');
+                    }}
+                  >
+                    <MonitorCog size={17} /> Geräte
+                  </button>
+                )}
+                {user.role === 'admin' && (
+                  <button
+                    type="button"
+                    className="account-submenu"
+                    onClick={() => {
+                      switchView('users');
+                      setAccountOpen(false);
+                    }}
+                  >
+                    <Users size={17} /> Benutzer
+                  </button>
+                )}
                 {user.role === 'admin' && (
                   <button
                     type="button"
                     onClick={() => {
-                      V('updates');
-                      setAccountOpen(false);
+                      switchView('updates');
                     }}
                   >
                     <Download size={17} /> Updates
@@ -207,14 +354,11 @@ export default function App() {
           {nav.map(([v, n, icon]) => (
             <button
               key={v}
-              className={
-                (view === v ? 'nav active' : 'nav') + (v === 'devices' ? ' desktop-nav' : '')
-              }
-              onClick={() => {
-                V(v);
-                NO('');
-                E('');
+              ref={(element) => {
+                tabRefs.current[v] = element;
               }}
+              className={view === v ? 'nav active' : 'nav'}
+              onClick={() => switchView(v)}
             >
               {icon}
               {n}
@@ -225,36 +369,60 @@ export default function App() {
       <main>
         {error && <div className="alert">{error}</div>}
         {notice && <div className="notice">{notice}</div>}
-        {view === 'dashboard' && (
-          <DashboardView tvs={tvs} status={status} onSelectTv={SET_ACTION_TV} />
+        {isPagerView && (
+          <div
+            className="pager-viewport"
+            style={{ width: '100%', overflow: 'hidden', minWidth: 0, touchAction: 'pan-y' }}
+            onTouchStart={onTouchStart}
+            onTouchMove={onTouchMove}
+            onTouchEnd={onTouchEnd}
+            onTouchCancel={onTouchCancel}
+          >
+            <div
+              ref={pagerRef}
+              className="pager-track"
+              style={{
+                display: 'flex',
+                width: '100%',
+                transition: 'transform 240ms cubic-bezier(0.2, 0.75, 0.25, 1)',
+                transform: `translate3d(-${activeIndex * 100}%, 0, 0)`,
+              }}
+            >
+              <section className="pager-page">
+                <DashboardView tvs={tvs} status={status} onSelectTv={SET_ACTION_TV} />
+              </section>
+              <section className="pager-page">
+                <ScheduleView
+                  tv={tv}
+                  tvs={tvs}
+                  canEdit={canEdit}
+                  onSelect={SEL}
+                  save={(body) => void act(() => TvService.update(body))}
+                />
+              </section>
+              <section className="pager-page">
+                <BonusView
+                  tvs={tvs}
+                  status={status}
+                  selected={selected}
+                  setSelected={SEL}
+                  bonus={bonus}
+                  setBonus={B}
+                  canEdit={canEdit}
+                  act={act}
+                />
+              </section>
+              <section className="pager-page">
+                <StatisticsView tvs={tvs} />
+              </section>
+            </div>
+          </div>
         )}
-        {view === 'schedule' && (
-          <ScheduleView
-            tv={tv}
-            tvs={tvs}
-            canEdit={canEdit}
-            onSelect={SEL}
-            save={(body) => void act(() => TvService.update(body))}
-          />
-        )}
-        {view === 'bonus' && (
-          <BonusView
-            tvs={tvs}
-            status={status}
-            selected={selected}
-            setSelected={SEL}
-            bonus={bonus}
-            setBonus={B}
-            canEdit={canEdit}
-            act={act}
-          />
-        )}
-        {view === 'statistics' && <StatisticsView tvs={tvs} />}
         {view === 'updates' && user.role === 'admin' && <UpdateView />}
-        {view === 'devices' && user.role === 'admin' && <DevicesView tvs={tvs} act={act} />}
         {view === 'settings' && canEdit && settings && (
           <SettingsView settings={settings} setSettings={SE} act={act} />
         )}
+        {view === 'devices' && user.role === 'admin' && <DevicesView tvs={tvs} act={act} />}
         {view === 'users' && user.role === 'admin' && (
           <UsersView users={users} user={user} act={act} />
         )}
