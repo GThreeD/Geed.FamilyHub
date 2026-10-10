@@ -54,6 +54,17 @@ export default function App() {
     startedAt: number;
   } | null>(null);
   const pagerRef = useRef<HTMLDivElement>(null);
+  const [pageHeight, setPageHeight] = useState<number>();
+
+  useEffect(() => {
+    const page = pagerRef.current?.querySelector<HTMLElement>('[data-active="true"]');
+    if (!page) return;
+    const measure = () => setPageHeight(page.getBoundingClientRect().height);
+    measure();
+    const observer = new ResizeObserver(measure);
+    observer.observe(page);
+    return () => observer.disconnect();
+  }, [view, user?.id]);
   const tabRefs = useRef<Partial<Record<View, HTMLButtonElement | null>>>({});
 
   useEffect(() => {
@@ -374,7 +385,13 @@ export default function App() {
         {isPagerView && (
           <div
             className="pager-viewport"
-            style={{ width: '100%', overflow: 'hidden', minWidth: 0, touchAction: 'pan-y' }}
+            style={{
+              width: '100%',
+              height: pageHeight,
+              overflow: 'hidden',
+              minWidth: 0,
+              touchAction: 'pan-y',
+            }}
             onTouchStart={onTouchStart}
             onTouchMove={onTouchMove}
             onTouchEnd={onTouchEnd}
@@ -385,15 +402,26 @@ export default function App() {
               className="pager-track"
               style={{
                 display: 'flex',
+                alignItems: 'flex-start',
                 width: '100%',
                 transition: 'transform 240ms cubic-bezier(0.2, 0.75, 0.25, 1)',
                 transform: `translate3d(-${activeIndex * 100}%, 0, 0)`,
               }}
             >
-              <section className="pager-page">
+              <section
+                className="pager-page"
+                data-active={view === 'dashboard'}
+                aria-hidden={view !== 'dashboard'}
+                inert={view !== 'dashboard'}
+              >
                 <DashboardView tvs={tvs} status={status} onSelectTv={SET_ACTION_TV} />
               </section>
-              <section className="pager-page">
+              <section
+                className="pager-page"
+                data-active={view === 'schedule'}
+                aria-hidden={view !== 'schedule'}
+                inert={view !== 'schedule'}
+              >
                 <ScheduleView
                   tv={tv}
                   tvs={tvs}
@@ -402,7 +430,12 @@ export default function App() {
                   save={(body) => void act(() => TvService.update(body))}
                 />
               </section>
-              <section className="pager-page">
+              <section
+                className="pager-page"
+                data-active={view === 'bonus'}
+                aria-hidden={view !== 'bonus'}
+                inert={view !== 'bonus'}
+              >
                 <BonusView
                   tvs={tvs}
                   status={status}
@@ -414,7 +447,12 @@ export default function App() {
                   act={act}
                 />
               </section>
-              <section className="pager-page">
+              <section
+                className="pager-page"
+                data-active={view === 'statistics'}
+                aria-hidden={view !== 'statistics'}
+                inert={view !== 'statistics'}
+              >
                 <StatisticsView tvs={tvs} />
               </section>
             </div>
