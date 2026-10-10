@@ -132,3 +132,10 @@ Unter Einstellungen → Deine Übersicht kann jedes Benutzerkonto die Kacheln
 „Fernseher“, „Online erkannt“ und „Aktive Sperren“ einzeln ausblenden. Die Auswahl
 wird im Konto gespeichert und gilt auch auf anderen Geräten. Benutzer mit
 Leserechten können ihre eigene Übersicht ebenfalls anpassen.
+
+Wenn ein Ausschaltversuch nicht zu bestätigtem Standby führt, darf die Steuerung
+nach spätestens 15 Sekunden erneut Power senden. Kürzere eingestellte Wartezeiten
+bleiben wirksam. Jeder automatische Versuch setzt weiterhin ein gesperrtes,
+aktiviertes Gerät, eingeschalteten Sperrmodus und eine frische ON-Erkennung direkt
+vor dem Senden voraus. Bei OFF, Standby oder unbekanntem Zustand wird nicht erneut
+gesendet. Das gilt auch für den manuellen Power-Befehl im Geräte-Popup.

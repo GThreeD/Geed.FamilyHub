@@ -2,7 +2,8 @@ from __future__ import annotations
 import logging
 import time
 from dataclasses import dataclass
-from datetime import datetime, timezone, timedelta
+from datetime import datetime, timezone
+from app.helpers.power_helpers import power_retry_remaining
 
 logger = logging.getLogger(__name__)
 
@@ -99,8 +100,8 @@ class AutomationManager:
                 st.last_state=observation
             # A confirmed OFF cycle ends the prior power attempt. Clear both
             # the toggle guard and its cooldown: switching the TV back ON is a
-            # new power cycle, which should be enforced promptly. Never clear
-            # the guard while the TV is reachable (power key is a toggle).
+            # new power cycle, which should be enforced promptly. Otherwise the
+            # guard expires after at most 15 seconds, with a fresh ON check below.
             persistent=self.data.runtime_state(tv.tv_id)
             if st.offline_count>=self.settings.confirm_offline_checks and (
                 persistent['blocked_until_offline'] or persistent['last_attempt_at']
@@ -110,13 +111,10 @@ class AutomationManager:
                 persistent=self.data.runtime_state(tv.tv_id)
             if not st.confirmed_online or not reachable or status['allowed'] or not tv.enabled:
                 continue
-            if persistent['blocked_until_offline']:
-                logger.debug('%s: Power-Versuch blockiert; warte auf bestaetigten Standby/Offline', tv.name)
+            wait = power_retry_remaining(persistent, now, self.settings.cooldown_seconds)
+            if wait > 0:
+                logger.debug('%s: Power-Versuch blockiert; neuer Versuch in %.1fs bei erneutem ON', tv.name, wait)
                 continue
-            if persistent['last_attempt_at']:
-                previous=datetime.fromisoformat(persistent['last_attempt_at'])
-                if now-previous < timedelta(seconds=self.settings.cooldown_seconds):
-                    continue
             if not self.armed:
                 if not st.dry_logged:
                     logger.warning('[DRY RUN] Wuerde %s ausschalten',tv.name)
@@ -141,5 +139,5 @@ class AutomationManager:
                     self.data.set_runtime(tv.tv_id,None,False)
                     logger.warning('%s: Keine WebSocket-Verbindung; neuer Versuch nach erneuter ON-Pruefung',tv.name)
                     continue
-                logger.exception('%s: Power-Befehl unklar/fehlgeschlagen (kein Auto-Retry bis Standby)',tv.name)
+                logger.exception('%s: Power-Befehl unklar/fehlgeschlagen (Retry nach maximal 15s bei erneutem ON)',tv.name)
                 self.data.log_event(tv.tv_id,now.isoformat(),'power_error','Fehler beim Senden')

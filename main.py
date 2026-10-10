@@ -7,6 +7,7 @@ import threading
 from dataclasses import asdict
 from pathlib import Path
 from datetime import datetime, timezone
+from app.helpers.power_helpers import power_retry_remaining
 from app.data.database_data import DatabaseData
 from app.managers.tv_manager import TVManager
 from app.managers.schedule_manager import ScheduleManager
@@ -79,13 +80,17 @@ class SamsungApplication:
                 return {'ok': True, 'sent': False}
             if observation.state != 'on':
                 raise ValidationError('Gerät ist aktuell nicht sicher als eingeschaltet erkannt')
-            if self.data.runtime_state(tv.tv_id)['blocked_until_offline']:
-                raise ValidationError('Power wurde bereits gesendet; warte auf bestätigtes Standby')
-            now = datetime.now(timezone.utc).isoformat()
+            settings = self.settings.get()
+            current_time = datetime.now(timezone.utc)
+            wait = power_retry_remaining(self.data.runtime_state(tv.tv_id), current_time, settings['cooldown_seconds'])
+            if wait > 0:
+                import math
+                raise ValidationError(f'Power wurde bereits gesendet; erneuter Versuch in {math.ceil(wait)} Sekunden möglich')
+            now = current_time.isoformat()
             self.data.set_runtime(tv.tv_id, now, True)
             self.data.log_event(tv.tv_id, now, 'manual_power_attempt', 'KEY_POWER short press')
             try:
-                self.samsung.power_hold(tv, self.settings.get()['power_hold_seconds'])
+                self.samsung.power_hold(tv, settings['power_hold_seconds'])
             except PowerConnectionNotEstablished:
                 self.data.set_runtime(tv.tv_id, None, False)
                 raise

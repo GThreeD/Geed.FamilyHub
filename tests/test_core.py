@@ -1,5 +1,7 @@
 import tempfile
 import unittest
+from unittest.mock import Mock
+from app.services.samsung_service import PowerObservation
 from datetime import datetime, timezone, timedelta
 from pathlib import Path
 from app.data.database_data import DatabaseData
@@ -89,6 +91,87 @@ class Tests(unittest.TestCase):
         grant = self.data.list_bonus_grants(self.tv.tv_id)[0]
         self.data.revoke_bonus_grant(self.tv.tv_id, grant['id'])
         engine.tick(self.now + timedelta(seconds=15), 115)
+        self.assertEqual(fake.calls, 1)
+
+    def test_retry_after_15_seconds_despite_default_120_second_cooldown(self):
+        fake = FakeSamsung()
+        engine = AutomationManager(self.tvs, self.sched, self.data, fake,
+                                   RuntimeConfig(confirm_online_checks=1), armed=True)
+        for offset, expected in ((0,1), (5,1), (14,1), (15,2), (20,2), (30,3)):
+            engine.tick(self.now + timedelta(seconds=offset), 100+offset)
+            self.assertEqual(fake.calls, expected, offset)
+
+    def test_old_power_guard_does_not_block_after_bonus_revocation(self):
+        fake = FakeSamsung()
+        engine = AutomationManager(self.tvs, self.sched, self.data, fake,
+                                   RuntimeConfig(confirm_online_checks=1), armed=True)
+        engine.tick(self.now, 100)
+        self.assertEqual(fake.calls, 1)
+        self.sched.add_bonus(self.tv.tv_id, 10, now=self.now)
+        # TV stays ON or is switched back ON without observed standby in between.
+        for offset in (5, 10, 15, 20):
+            engine.tick(self.now + timedelta(seconds=offset), 100+offset)
+        self.assertEqual(fake.calls, 1)
+        grant = self.data.list_bonus_grants(self.tv.tv_id)[0]
+        self.data.revoke_bonus_grant(self.tv.tv_id, grant['id'])
+        engine.tick(self.now + timedelta(seconds=25), 125)
+        self.assertEqual(fake.calls, 2)
+
+    def test_no_retry_when_offline_unknown_or_allowed(self):
+        fake = Mock()
+        fake.observe_power.return_value = PowerObservation('on', 'api')
+        engine = AutomationManager(self.tvs, self.sched, self.data, fake,
+                                   RuntimeConfig(confirm_online_checks=1), armed=True)
+        engine.tick(self.now, 100)
+        fake.power_hold.assert_called_once()
+        for offset, state in ((15,'unknown'), (20,'standby'), (25,'off')):
+            fake.observe_power.return_value = PowerObservation(state, 'api')
+            engine.tick(self.now + timedelta(seconds=offset), 100+offset)
+        self.sched.add_bonus(self.tv.tv_id, 10, now=self.now)
+        fake.observe_power.return_value = PowerObservation('on', 'api')
+        engine.tick(self.now + timedelta(seconds=30), 130)
+        fake.power_hold.assert_called_once()
+
+    def test_retry_rechecks_on_immediately_before_sending(self):
+        fake = Mock()
+        fake.observe_power.return_value = PowerObservation('on', 'api')
+        engine = AutomationManager(self.tvs, self.sched, self.data, fake,
+                                   RuntimeConfig(confirm_online_checks=1), armed=True)
+        engine.tick(self.now, 100)
+        fake.observe_power.side_effect = [PowerObservation('on', 'api'), PowerObservation('standby', 'api')]
+        engine.tick(self.now + timedelta(seconds=15), 115)
+        fake.power_hold.assert_called_once()
+
+    def test_shorter_configured_cooldown_remains_effective(self):
+        fake = FakeSamsung()
+        engine = AutomationManager(self.tvs, self.sched, self.data, fake,
+                                   RuntimeConfig(confirm_online_checks=1, cooldown_seconds=5), armed=True)
+        engine.tick(self.now, 100)
+        engine.tick(self.now + timedelta(seconds=4), 104)
+        self.assertEqual(fake.calls, 1)
+        engine.tick(self.now + timedelta(seconds=5), 105)
+        self.assertEqual(fake.calls, 2)
+
+    def test_uncertain_power_delivery_retries_after_timeout(self):
+        fake = Mock()
+        fake.observe_power.return_value = PowerObservation('on', 'api')
+        fake.power_hold.side_effect = [OSError('delivery unknown'), None]
+        engine = AutomationManager(self.tvs, self.sched, self.data, fake,
+                                   RuntimeConfig(confirm_online_checks=1), armed=True)
+        with self.assertLogs('app.managers.automation_manager', level='ERROR'):
+            engine.tick(self.now, 100)
+        self.assertTrue(self.data.runtime_state(self.tv.tv_id)['blocked_until_offline'])
+        engine.tick(self.now + timedelta(seconds=14), 114)
+        self.assertEqual(fake.power_hold.call_count, 1)
+        engine.tick(self.now + timedelta(seconds=15), 115)
+        self.assertEqual(fake.power_hold.call_count, 2)
+
+    def test_timestamp_less_legacy_guard_does_not_block_forever(self):
+        fake = FakeSamsung()
+        self.data.set_runtime(self.tv.tv_id, None, True)
+        engine = AutomationManager(self.tvs, self.sched, self.data, fake,
+                                   RuntimeConfig(confirm_online_checks=1), armed=True)
+        engine.tick(self.now, 100)
         self.assertEqual(fake.calls, 1)
 
     def test_store_roundtrip(self):

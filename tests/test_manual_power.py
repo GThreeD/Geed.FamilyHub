@@ -1,7 +1,8 @@
 import tempfile
 import unittest
 from pathlib import Path
-from unittest.mock import Mock
+from unittest.mock import Mock, patch
+from datetime import datetime, timezone, timedelta
 from main import SamsungApplication
 from app.models.schemas import TVConfig, ValidationError
 from app.services.samsung_service import PowerConnectionNotEstablished, PowerObservation
@@ -29,6 +30,18 @@ class ManualPowerTests(unittest.TestCase):
         with self.assertRaises(ValidationError):
             self.app.facade.power_off('tv')
         self.app.samsung.power_hold.assert_called_once()
+
+    def test_manual_power_can_retry_at_15_seconds(self):
+        now = datetime(2026, 10, 10, 9, tzinfo=timezone.utc)
+        with patch('main.datetime') as clock:
+            clock.now.return_value = now
+            self.app.facade.power_off('tv')
+            clock.now.return_value = now + timedelta(seconds=14)
+            with self.assertRaises(ValidationError):
+                self.app.facade.power_off('tv')
+            clock.now.return_value = now + timedelta(seconds=15)
+            self.assertTrue(self.app.facade.power_off('tv')['sent'])
+        self.assertEqual(self.app.samsung.power_hold.call_count, 2)
 
     def test_no_toggle_when_offline_or_unknown(self):
         for state in ('off', 'standby', 'unknown'):
