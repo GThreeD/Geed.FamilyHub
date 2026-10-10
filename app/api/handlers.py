@@ -4,11 +4,12 @@ from datetime import datetime
 from app.models.schemas import TVConfig, ValidationError
 
 class TVApi:
-    def __init__(self, tv_manager, schedule_manager, data, observation_provider=None):
+    def __init__(self, tv_manager, schedule_manager, data, observation_provider=None, power_sender=None):
         self.tvs=tv_manager
         self.schedules=schedule_manager
         self.data=data
         self.observation_provider=observation_provider
+        self.power_sender=power_sender
 
     def get_tvs(self):
         return [asdict(tv) for tv in self.tvs.list()]
@@ -63,6 +64,14 @@ class TVApi:
             raise ValidationError('TV nicht gefunden')
         self.schedules.locks.clear(tv_id)
         return {'ok':True}
+
+    def power_off(self, tv_id):
+        tv = self.tvs.get(tv_id)
+        if tv is None:
+            raise ValidationError('TV nicht gefunden')
+        if self.power_sender is None:
+            raise ValidationError('Power-Steuerung nicht verfügbar')
+        return self.power_sender(tv)
 
     def add_bonus(self,tv_id,minutes,expires_at=None):
         if self.tvs.get(tv_id) is None:

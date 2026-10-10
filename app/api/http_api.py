@@ -144,6 +144,11 @@ class HttpApi:
                     if parts[3]=='status' and method=='GET':return self.reply(outer.facade.get_status(tv_id))
                     if parts[3]=='events' and method=='GET':
                         limit=int(parse_qs(query).get('limit',['100'])[0]);return self.reply(outer.facade.get_events(tv_id,limit))
+                    if parts[3]=='power' and method=='POST':
+                        outer.auth.require(user,'control')
+                        if body != {}:
+                            raise ValidationError('Leeres JSON-Objekt erwartet')
+                        return self.reply(outer.facade.power_off(tv_id))
                     if parts[3]=='bonus' and method=='POST':
                         outer.auth.require(user,'control')
                         if not isinstance(body,dict) or 'minutes' not in body or not set(body).issubset({'minutes','expires_at'}):

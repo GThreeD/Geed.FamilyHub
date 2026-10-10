@@ -14,6 +14,13 @@ export type TvLock = {
 };
 
 export class DeviceService {
+  static powerOff(id: string) {
+    return HttpService.request<{ ok: boolean; sent: boolean }>(
+      `/api/tvs/${encodeURIComponent(id)}/power`,
+      'POST',
+      {},
+    );
+  }
   static create(tv: TV) {
     return HttpService.request<TV>('/api/tvs', 'POST', tv);
   }

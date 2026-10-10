@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { Gift, Lock, LockOpen, Moon, ArrowLeft, X } from 'lucide-react';
+import { Gift, Lock, LockOpen, Moon, ArrowLeft, X, Power } from 'lucide-react';
 import type { TV, TVStatus } from '../api';
 import BonusEditor from './BonusEditor';
 import { DeviceService, type TvLock } from '../services/DeviceService';
@@ -18,6 +18,7 @@ export default function TvActionsModal({ tv, canEdit, onClose, status: tvStatus,
   const [lock, setLock] = useState<TvLock | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
+  const [powerNotice, setPowerNotice] = useState('');
 
   useEffect(() => {
     function onKeyDown(event: KeyboardEvent) {
@@ -56,6 +57,28 @@ export default function TvActionsModal({ tv, canEdit, onClose, status: tvStatus,
       setLock(result.lock);
     } catch (reason) {
       setError((reason as Error).message);
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  async function powerOff() {
+    if (!tv || loading) return;
+    setLoading(true);
+    setError('');
+    setPowerNotice('');
+    try {
+      await act(async () => {
+        try {
+          const result = await DeviceService.powerOff(tv.tv_id);
+          setPowerNotice(
+            result.sent ? 'Power-Befehl gesendet.' : 'Gerät ist bereits ausgeschaltet.',
+          );
+        } catch (reason) {
+          setError((reason as Error).message);
+          throw reason;
+        }
+      });
     } finally {
       setLoading(false);
     }
@@ -125,6 +148,20 @@ export default function TvActionsModal({ tv, canEdit, onClose, status: tvStatus,
               <span>
                 <strong>Sperren</strong>
                 <small>{status}</small>
+              </span>
+              <span aria-hidden="true">→</span>
+            </button>
+            <button
+              className="tv-action"
+              disabled={!canEdit || loading}
+              onClick={() => void powerOff()}
+            >
+              <span className="tv-action-symbol lock">
+                <Power size={23} />
+              </span>
+              <span>
+                <strong>{loading ? 'Wird gesendet…' : 'Ausschalten'}</strong>
+                <small>Power-Befehl senden</small>
               </span>
               <span aria-hidden="true">→</span>
             </button>

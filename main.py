@@ -6,6 +6,7 @@ import os
 import threading
 from dataclasses import asdict
 from pathlib import Path
+from datetime import datetime, timezone
 from app.data.database_data import DatabaseData
 from app.managers.tv_manager import TVManager
 from app.managers.schedule_manager import ScheduleManager
@@ -28,7 +29,8 @@ class SamsungApplication:
         self.settings=SettingsManager(self.data)
         self._import_legacy_config()
         self._engine=None
-        self.facade=TVApi(self.tvs,self.schedules,self.data,self.get_observation)
+        self._command_lock=threading.RLock()
+        self.facade=TVApi(self.tvs,self.schedules,self.data,self.get_observation,self.power_off)
         self.auth=AuthManager(self.data)
         self.http=HttpApi(self.facade,self.settings,self.data,self.auth,self.directory/'frontend'/'dist')
         self.samsung=SamsungService(self.directory/'private'/'tokens')
@@ -69,6 +71,29 @@ class SamsungApplication:
             'last_checked_at':st.last_checked_at,
         }
 
+    def power_off(self, tv):
+        from app.services.samsung_service import PowerConnectionNotEstablished
+        with self._command_lock:
+            observation = self.samsung.observe_power(tv)
+            if observation.state in ('off', 'standby'):
+                return {'ok': True, 'sent': False}
+            if observation.state != 'on':
+                raise ValidationError('Gerät ist aktuell nicht sicher als eingeschaltet erkannt')
+            if self.data.runtime_state(tv.tv_id)['blocked_until_offline']:
+                raise ValidationError('Power wurde bereits gesendet; warte auf bestätigtes Standby')
+            now = datetime.now(timezone.utc).isoformat()
+            self.data.set_runtime(tv.tv_id, now, True)
+            self.data.log_event(tv.tv_id, now, 'manual_power_attempt', 'KEY_POWER short press')
+            try:
+                self.samsung.power_hold(tv, self.settings.get()['power_hold_seconds'])
+            except PowerConnectionNotEstablished:
+                self.data.set_runtime(tv.tv_id, None, False)
+                raise
+            except Exception:
+                self.data.log_event(tv.tv_id, now, 'power_error', 'Fehler beim manuellen Senden')
+                raise
+            return {'ok': True, 'sent': True}
+
     def monitor(self):
         while not self.stop_event.is_set():
             settings=self.settings.get()
@@ -82,7 +107,8 @@ class SamsungApplication:
                 self._engine.settings=config
                 self._engine.armed=bool(settings['armed'])
             try:
-                self._engine.tick()
+                with self._command_lock:
+                    self._engine.tick()
             except Exception:
                 logging.exception('Fehler im Monitor; Überwachung wird fortgesetzt')
             self.stop_event.wait(config.poll_seconds)
