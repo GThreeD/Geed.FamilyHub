@@ -9,6 +9,7 @@ EXCEPTIONS = '20261009190000_ScheduleExceptions'
 SESSIONS = '20261009200000_UsageSessions'
 LOCKS = '20261009210000_TemporaryTvLocks'
 FAST_SETTINGS = '20261010120000_FasterMonitorSettings'
+PREFERENCES = '20261010130000_UserDashboardPreferences'
 
 class MigrationManager:
     def __init__(self, db):
@@ -22,7 +23,7 @@ class MigrationManager:
              AppliedAt TEXT NOT NULL)''')
         current = {row[0] for row in self.db.execute('SELECT MigrationId FROM __EFMigrationsHistory')}
         legacy = self.db.execute('PRAGMA user_version').fetchone()[0]
-        if legacy > 7:
+        if legacy > 8:
             raise RuntimeError('Datenbank stammt aus einer neueren Version')
         if BASELINE not in current:
             if legacy >= 1 or self._exists('tvs'):
@@ -134,7 +135,15 @@ class MigrationManager:
                 INSERT INTO app_settings SELECT * FROM app_settings_previous;
                 DROP TABLE app_settings_previous;
             ''', FAST_SETTINGS)
-        self.db.execute('PRAGMA user_version=7')
+        current = {row[0] for row in self.db.execute('SELECT MigrationId FROM __EFMigrationsHistory')}
+        if PREFERENCES not in current:
+            self._sql('''CREATE TABLE IF NOT EXISTS user_preferences (
+                user_id INTEGER PRIMARY KEY REFERENCES users(id) ON DELETE CASCADE,
+                show_tv_count INTEGER NOT NULL DEFAULT 1 CHECK(show_tv_count IN (0,1)),
+                show_online_count INTEGER NOT NULL DEFAULT 1 CHECK(show_online_count IN (0,1)),
+                show_blocked_count INTEGER NOT NULL DEFAULT 1 CHECK(show_blocked_count IN (0,1)));
+            ''', PREFERENCES)
+        self.db.execute('PRAGMA user_version=8')
         self.db.commit()
 
     def _exists(self, table):

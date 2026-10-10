@@ -1,13 +1,20 @@
 import { Tv } from 'lucide-react';
 import type { TV, TVStatus } from '../api';
+import { DEFAULT_PREFERENCES, type DashboardPreferences } from '../services/PreferencesService';
 
 type DashboardViewProps = {
   tvs: TV[];
   status: Record<string, TVStatus>;
+  preferences?: DashboardPreferences;
   onSelectTv: (id: string) => void;
 };
 
-export default function DashboardView({ tvs, status, onSelectTv }: DashboardViewProps) {
+export default function DashboardView({
+  tvs,
+  status,
+  onSelectTv,
+  preferences = DEFAULT_PREFERENCES,
+}: DashboardViewProps) {
   const observations = Object.values(status);
   const onlineCount = observations.filter(
     (entry) => entry.online_observation?.confirmed_online,
@@ -16,23 +23,31 @@ export default function DashboardView({ tvs, status, onSelectTv }: DashboardView
 
   return (
     <>
-      <div className="stats">
-        <div className="stat">
-          <span>Fernseher</span>
-          <strong>{tvs.length}</strong>
-          <small>Verwaltete Geräte</small>
+      {Object.values(preferences).some(Boolean) && (
+        <div className="stats" data-count={Object.values(preferences).filter(Boolean).length}>
+          {preferences.show_tv_count && (
+            <div className="stat">
+              <span>Fernseher</span>
+              <strong>{tvs.length}</strong>
+              <small>Verwaltete Geräte</small>
+            </div>
+          )}
+          {preferences.show_online_count && (
+            <div className="stat">
+              <span>Online erkannt</span>
+              <strong>{onlineCount}</strong>
+              <small>Lokale Port-Prüfung</small>
+            </div>
+          )}
+          {preferences.show_blocked_count && (
+            <div className="stat">
+              <span>Aktive Sperren</span>
+              <strong>{blockedCount}</strong>
+              <small>Außerhalb erlaubter Nutzung</small>
+            </div>
+          )}
         </div>
-        <div className="stat">
-          <span>Online erkannt</span>
-          <strong>{onlineCount}</strong>
-          <small>Lokale Port-Prüfung</small>
-        </div>
-        <div className="stat">
-          <span>Aktive Sperren</span>
-          <strong>{blockedCount}</strong>
-          <small>Außerhalb erlaubter Nutzung</small>
-        </div>
-      </div>
+      )}
 
       <h2>Deine Fernseher</h2>
       <div className="tv-grid">

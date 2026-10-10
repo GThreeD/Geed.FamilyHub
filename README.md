@@ -127,3 +127,8 @@ höchstens bis zum nächsten Fenster oder bis Mitternacht. Zwischen Fenstern
 beginnt die Bonuszeit sofort und läuft für die vergebenen Minuten. Zeitplan-Ausnahmen
 werden dabei berücksichtigt. Ein älterer API-Client kann über `expires_at` ein
 früheres Ablaufdatum angeben, aber diese Grenzen nicht verlängern.
+
+Unter Einstellungen → Deine Übersicht kann jedes Benutzerkonto die Kacheln
+„Fernseher“, „Online erkannt“ und „Aktive Sperren“ einzeln ausblenden. Die Auswahl
+wird im Konto gespeichert und gilt auch auf anderen Geräten. Benutzer mit
+Leserechten können ihre eigene Übersicht ebenfalls anpassen.

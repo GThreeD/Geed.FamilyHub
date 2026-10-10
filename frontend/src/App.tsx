@@ -15,6 +15,8 @@ import {
 import type { TV, TVStatus, User } from './api';
 import { AuthService } from './services/AuthService';
 import { TvService } from './services/TvService';
+import DashboardPreferences from './components/DashboardPreferences';
+import { PreferencesService, DEFAULT_PREFERENCES } from './services/PreferencesService';
 import { SettingsService } from './services/SettingsService';
 import { UserService, type ManagedUser } from './services/UserService';
 import Access from './components/Access';
@@ -45,6 +47,7 @@ export default function App() {
     [notice, NO] = useState(''),
     [actionTvId, SET_ACTION_TV] = useState<string | null>(null),
     [accountOpen, setAccountOpen] = useState(false);
+  const [preferences, setPreferences] = useState(DEFAULT_PREFERENCES);
   const accountRef = useRef<HTMLDivElement>(null);
   const swipeStart = useRef<{
     x: number;
@@ -113,6 +116,7 @@ export default function App() {
       SEL((previous) =>
         all.some((tv) => tv.tv_id === previous) ? previous : (all[0]?.tv_id ?? ''),
       );
+      setPreferences(await PreferencesService.get());
       if (user.role !== 'viewer') SE(await SettingsService.get());
       if (user.role === 'admin') US(await UserService.list());
       await refreshStatus(all);
@@ -306,17 +310,15 @@ export default function App() {
                 >
                   <RefreshCw size={17} /> Aktualisieren
                 </button>
-                {canEdit && (
-                  <button
-                    type="button"
-                    onClick={() => {
-                      switchView('settings');
-                      setAccountOpen(false);
-                    }}
-                  >
-                    <Settings size={17} /> Einstellungen
-                  </button>
-                )}
+                <button
+                  type="button"
+                  onClick={() => {
+                    switchView('settings');
+                    setAccountOpen(false);
+                  }}
+                >
+                  <Settings size={17} /> Einstellungen
+                </button>
                 {user.role === 'admin' && (
                   <button
                     type="button"
@@ -414,7 +416,12 @@ export default function App() {
                 aria-hidden={view !== 'dashboard'}
                 inert={view !== 'dashboard'}
               >
-                <DashboardView tvs={tvs} status={status} onSelectTv={SET_ACTION_TV} />
+                <DashboardView
+                  tvs={tvs}
+                  status={status}
+                  preferences={preferences}
+                  onSelectTv={SET_ACTION_TV}
+                />
               </section>
               <section
                 className="pager-page"
@@ -459,8 +466,11 @@ export default function App() {
           </div>
         )}
         {view === 'updates' && user.role === 'admin' && <UpdateView />}
-        {view === 'settings' && canEdit && settings && (
-          <SettingsView settings={settings} setSettings={SE} act={act} />
+        {view === 'settings' && (
+          <div className="settings-layout">
+            <DashboardPreferences preferences={preferences} onSaved={setPreferences} act={act} />
+            {canEdit && settings && <SettingsView settings={settings} setSettings={SE} act={act} />}
+          </div>
         )}
         {view === 'devices' && user.role === 'admin' && <DevicesView tvs={tvs} act={act} />}
         {view === 'users' && user.role === 'admin' && (

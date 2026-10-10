@@ -1264,3 +1264,18 @@ th {
 .usage-bar .bonus-usage {
   background: #22a45d;
 }
+
+.stats[data-count='1'] {
+  grid-template-columns: 1fr;
+}
+.stats[data-count='2'] {
+  grid-template-columns: repeat(2, 1fr);
+}
+.stats[data-count='2'] .stat:last-child {
+  grid-column: auto;
+}
+.settings-layout {
+  display: grid;
+  gap: 24px;
+  align-content: start;
+}

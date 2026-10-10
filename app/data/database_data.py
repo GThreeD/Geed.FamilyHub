@@ -316,3 +316,15 @@ class DatabaseData:
     def remove_tv_lock(self,tv_id):
         with self.connection() as db:
             db.execute('DELETE FROM tv_locks WHERE tv_id=?',(tv_id,))
+
+    def get_user_preferences(self, user_id):
+        with self.connection() as db:
+            row = db.execute('SELECT show_tv_count,show_online_count,show_blocked_count FROM user_preferences WHERE user_id=?', (user_id,)).fetchone()
+            return {key: bool(row[key]) if row else True for key in ('show_tv_count','show_online_count','show_blocked_count')}
+
+    def save_user_preferences(self, user_id, values):
+        with self.connection() as db:
+            db.execute('''INSERT INTO user_preferences VALUES(?,?,?,?)
+                ON CONFLICT(user_id) DO UPDATE SET show_tv_count=excluded.show_tv_count,
+                show_online_count=excluded.show_online_count,show_blocked_count=excluded.show_blocked_count''',
+                (user_id, int(values['show_tv_count']), int(values['show_online_count']), int(values['show_blocked_count'])))

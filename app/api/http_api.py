@@ -98,6 +98,15 @@ class HttpApi:
                 if method!='GET':outer.auth.verify_csrf(user,self.headers.get('X-CSRF-Token',''))
                 if path=='/api/auth/me' and method=='GET':
                     return self.reply({'user':{k:user[k] for k in ('id','username','display_name','role')},'csrf_token':outer.auth.new_csrf(token)})
+                if path=='/api/auth/preferences':
+                    if method=='GET':
+                        return self.reply(outer.data.get_user_preferences(user['id']))
+                    if method=='PUT':
+                        keys = {'show_tv_count','show_online_count','show_blocked_count'}
+                        if not isinstance(body,dict) or set(body)!=keys or any(type(value) is not bool for value in body.values()):
+                            raise ValidationError('Drei boolesche Kachel-Einstellungen erforderlich')
+                        outer.data.save_user_preferences(user['id'], body)
+                        return self.reply(outer.data.get_user_preferences(user['id']))
                 if path=='/api/auth/logout' and method=='POST':
                     outer.auth.logout(token)
                     return self.reply({'ok':True},extra={'Set-Cookie':self.cookie_header('',0)})
