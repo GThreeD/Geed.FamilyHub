@@ -7,7 +7,7 @@ type BonusWheelProps = {
 };
 
 const MINUTES_PER_REVOLUTION = 60;
-const MAX_MINUTES = 24 * 60;
+const MAX_MINUTES = 12 * 60;
 const RADIUS = 94;
 const CIRCUMFERENCE = 2 * Math.PI * RADIUS;
 
@@ -36,7 +36,12 @@ export default function BonusWheel({ minutes, onChange, disabled = false }: Bonu
   const formattedTime = `${String(Math.floor(minutes / 60)).padStart(2, '0')}:${String(minutes % 60).padStart(2, '0')}`;
 
   function beginDrag(event: PointerEvent<SVGSVGElement>) {
-    if (disabled) return;
+    if (
+      disabled ||
+      !(event.target instanceof Element) ||
+      !event.target.classList.contains('bonus-wheel-handle')
+    )
+      return;
     event.preventDefault();
     event.currentTarget.setPointerCapture(event.pointerId);
     drag.current = { angle: angleFromPointer(event), value: minutes };
@@ -100,6 +105,7 @@ export default function BonusWheel({ minutes, onChange, disabled = false }: Bonu
         onPointerMove={moveDrag}
         onPointerUp={endDrag}
         onPointerCancel={endDrag}
+        onLostPointerCapture={endDrag}
         onKeyDown={onKeyboard}
       >
         <circle cx="120" cy="120" r="109" className="bonus-wheel-background" />
@@ -124,7 +130,7 @@ export default function BonusWheel({ minutes, onChange, disabled = false }: Bonu
         </text>
       </svg>
       <p className="muted small bonus-wheel-help">
-        Im Kreis drehen · 1 Umdrehung = 1 Stunde · weiterdrehen für mehr
+        Am Griff drehen · 1 Umdrehung = 1 Stunde · weiterdrehen für mehr
       </p>
     </div>
   );

@@ -555,8 +555,8 @@ th {
 .bonus-wheel {
   width: min(100%, 320px);
   height: auto;
-  cursor: grab;
-  touch-action: none;
+  cursor: default;
+  touch-action: pan-y;
   user-select: none;
   outline-offset: 4px;
 }
@@ -578,6 +578,8 @@ th {
   stroke-linecap: round;
 }
 .bonus-wheel-handle {
+  cursor: grab;
+  touch-action: none;
   fill: #6265e8;
   stroke: #fff;
   stroke-width: 4;
