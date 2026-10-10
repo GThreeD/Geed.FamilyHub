@@ -1,18 +1,20 @@
 import { useEffect, useState } from 'react';
 import { Gift, Lock, LockOpen, Moon, ArrowLeft, X } from 'lucide-react';
-import type { TV } from '../api';
+import type { TV, TVStatus } from '../api';
+import BonusEditor from './BonusEditor';
 import { DeviceService, type TvLock } from '../services/DeviceService';
 
 type Props = {
   tv?: TV;
   canEdit: boolean;
   onClose: () => void;
-  onBonus: (id: string) => void;
+  status?: TVStatus;
   act: (action: () => Promise<unknown>) => Promise<void>;
 };
 
-export default function TvActionsModal({ tv, canEdit, onClose, onBonus, act }: Props) {
-  const [panel, setPanel] = useState<'choices' | 'lock'>('choices');
+export default function TvActionsModal({ tv, canEdit, onClose, status: tvStatus, act }: Props) {
+  const [panel, setPanel] = useState<'choices' | 'lock' | 'bonus'>('choices');
+  const [bonus, setBonus] = useState(30);
   const [lock, setLock] = useState<TvLock | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
@@ -80,7 +82,7 @@ export default function TvActionsModal({ tv, canEdit, onClose, onBonus, act }: P
         aria-labelledby="tv-modal-title"
       >
         <div className="tv-modal-header">
-          {panel === 'lock' && (
+          {panel !== 'choices' && (
             <button
               className="tv-modal-icon"
               aria-label="Zurück"
@@ -92,7 +94,11 @@ export default function TvActionsModal({ tv, canEdit, onClose, onBonus, act }: P
           <div className="tv-modal-heading">
             <h2 id="tv-modal-title">{tv.name}</h2>
             <p className="muted small">
-              {panel === 'choices' ? 'Was möchtest du machen?' : 'Manuelle Sperre'}
+              {panel === 'choices'
+                ? 'Was möchtest du machen?'
+                : panel === 'bonus'
+                  ? 'Bonuszeit gewähren'
+                  : 'Manuelle Sperre'}
             </p>
           </div>
           <button className="tv-modal-icon" aria-label="Schließen" onClick={onClose}>
@@ -102,7 +108,7 @@ export default function TvActionsModal({ tv, canEdit, onClose, onBonus, act }: P
 
         {panel === 'choices' ? (
           <div className="tv-action-list">
-            <button className="tv-action" disabled={!canEdit} onClick={() => onBonus(tv.tv_id)}>
+            <button className="tv-action" disabled={!canEdit} onClick={() => setPanel('bonus')}>
               <span className="tv-action-symbol bonus">
                 <Gift size={23} />
               </span>
@@ -122,6 +128,17 @@ export default function TvActionsModal({ tv, canEdit, onClose, onBonus, act }: P
               </span>
               <span aria-hidden="true">→</span>
             </button>
+          </div>
+        ) : panel === 'bonus' ? (
+          <div className="tv-bonus-panel">
+            <BonusEditor
+              tvId={tv.tv_id}
+              status={tvStatus}
+              minutes={bonus}
+              onChange={setBonus}
+              canEdit={canEdit}
+              act={act}
+            />
           </div>
         ) : (
           <div className="tv-lock-panel">

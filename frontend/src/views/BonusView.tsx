@@ -1,8 +1,5 @@
-import { useState } from 'react';
-import BonusHistory from '../components/BonusHistory';
 import type { TV, TVStatus } from '../api';
-import { BonusService } from '../services/BonusService';
-import BonusWheel from '../components/BonusWheel';
+import BonusEditor from '../components/BonusEditor';
 
 type BonusViewProps = {
   tvs: TV[];
@@ -25,16 +22,6 @@ export default function BonusView({
   canEdit,
   act,
 }: BonusViewProps) {
-  const [revision, setRevision] = useState(0);
-  const remainingMinutes = Math.round((status[selected]?.bonus_remaining_seconds || 0) / 60);
-
-  function grantBonus() {
-    const expiresAt = new Date(Date.now() + 7 * 24 * 60 * 60000).toISOString();
-    void act(() => BonusService.grant(selected, bonus, expiresAt)).then(() =>
-      setRevision((v) => v + 1),
-    );
-  }
-
   return (
     <section className="panel narrow">
       <h2>Bonuszeit gewähren</h2>
@@ -50,27 +37,14 @@ export default function BonusView({
         </select>
       </label>
 
-      <BonusWheel minutes={bonus} onChange={setBonus} disabled={!canEdit} />
-
-      <button
-        disabled={!canEdit || !selected || bonus < 1}
-        className="primary"
-        onClick={grantBonus}
-      >
-        Bonus gutschreiben
-      </button>
-
-      <div className="note">Aktuelles Bonusguthaben: {remainingMinutes} Minuten</div>
-      {selected && (
-        <BonusHistory
-          tvId={selected}
-          canEdit={canEdit}
-          revision={revision}
-          onChange={async () => {
-            await act(async () => undefined);
-          }}
-        />
-      )}
+      <BonusEditor
+        tvId={selected}
+        status={status[selected]}
+        minutes={bonus}
+        onChange={setBonus}
+        canEdit={canEdit}
+        act={act}
+      />
     </section>
   );
 }

@@ -434,11 +434,7 @@ export default function App() {
           tv={tvs.find((entry) => entry.tv_id === actionTvId)}
           canEdit={canEdit}
           onClose={() => SET_ACTION_TV(null)}
-          onBonus={(id) => {
-            SEL(id);
-            V('bonus');
-            SET_ACTION_TV(null);
-          }}
+          status={status[actionTvId]}
           act={act}
         />
       )}
