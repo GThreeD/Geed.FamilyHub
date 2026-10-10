@@ -130,8 +130,9 @@ class DatabaseData:
                 entries = db.execute('''SELECT id,granted_seconds-consumed_seconds AS available FROM bonus
                     WHERE tv_id=? AND expires_at>? AND consumed_seconds<granted_seconds
                     ORDER BY expires_at,id''',(tv_id,at)).fetchall()
-                if sum(e['available'] for e in entries) < remaining:
-                    raise RuntimeError('Bonus nicht mehr verfuegbar')
+                # A grant can run out or be revoked between polls. Still record
+                # observed usage and let enforcement proceed when credit reaches zero.
+                remaining = min(remaining, sum(e['available'] for e in entries))
                 for entry in entries:
                     take = min(remaining,entry['available'])
                     if take:

@@ -69,6 +69,28 @@ class Tests(unittest.TestCase):
             engine.tick(future+timedelta(seconds=15+i*5),315+i*5)
         self.assertEqual(fake.calls,3)
 
+    def test_last_bonus_seconds_do_not_prevent_shutdown(self):
+        fake = FakeSamsung()
+        engine = AutomationManager(self.tvs, self.sched, self.data, fake, RuntimeConfig(), armed=True)
+        self.data.grant_bonus(self.tv.tv_id, 13, (self.now + timedelta(hours=1)).isoformat(), self.now.isoformat())
+        for i in range(6):
+            engine.tick(self.now + timedelta(seconds=i*5), 100+i*5)
+        self.assertEqual(self.data.available_bonus(self.tv.tv_id, self.now.isoformat()), 0)
+        self.assertEqual(fake.calls, 1)
+        self.assertEqual(self.sched.evaluate(self.tv, self.now)['used_today_seconds'], 15)
+
+    def test_revoking_bonus_enforces_online_device(self):
+        fake = FakeSamsung()
+        engine = AutomationManager(self.tvs, self.sched, self.data, fake, RuntimeConfig(), armed=True)
+        self.data.grant_bonus(self.tv.tv_id, 600, (self.now + timedelta(hours=1)).isoformat(), self.now.isoformat())
+        for i in range(3):
+            engine.tick(self.now + timedelta(seconds=i*5), 100+i*5)
+        self.assertEqual(fake.calls, 0)
+        grant = self.data.list_bonus_grants(self.tv.tv_id)[0]
+        self.data.revoke_bonus_grant(self.tv.tv_id, grant['id'])
+        engine.tick(self.now + timedelta(seconds=15), 115)
+        self.assertEqual(fake.calls, 1)
+
     def test_store_roundtrip(self):
         self.assertEqual(self.tvs.get('anessa'),self.tv)
         self.assertEqual(len(self.tvs.list()),1)
