@@ -17,5 +17,7 @@ export type TVStatus = {
   used_today_seconds: number;
   used_week_seconds: number;
   bonus_remaining_seconds: number;
+  bonus_granted_seconds: number;
+  bonus_consumed_seconds: number;
   online_observation: { state: string; confirmed_online: boolean; last_checked_at: string | null };
 };

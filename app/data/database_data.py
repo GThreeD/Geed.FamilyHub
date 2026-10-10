@@ -94,6 +94,13 @@ class DatabaseData:
              WHERE tv_id=? AND expires_at>?''',(tv_id, at)).fetchone()[0]
             return int(val)
 
+    def bonus_totals(self, tv_id, at):
+        with self.connection() as db:
+            row = db.execute('''SELECT COALESCE(SUM(granted_seconds),0) AS granted,
+                COALESCE(SUM(consumed_seconds),0) AS consumed FROM bonus
+                WHERE tv_id=? AND expires_at>?''', (tv_id, at)).fetchone()
+            return dict(row)
+
     def grant_bonus(self, tv_id, seconds, expires_at, created_at):
         with self.connection() as db:
             db.execute('INSERT INTO bonus(tv_id,granted_seconds,expires_at,created_at) VALUES(?,?,?,?)',

@@ -41,8 +41,14 @@ export default function DashboardView({ tvs, status, onSelectTv }: DashboardView
           const online = current?.online_observation?.state || 'unknown';
           const usedSeconds = current?.used_today_seconds || 0;
           const dailyLimit = tv.daily_limit_minutes || 0;
-          const usagePercent = dailyLimit
-            ? Math.min(100, (usedSeconds / (dailyLimit * 60)) * 100)
+          const bonusSeconds = current?.bonus_granted_seconds || 0;
+          const bonusConsumed = current?.bonus_consumed_seconds || 0;
+          const totalSeconds = dailyLimit * 60 + bonusSeconds;
+          const regularPercent = totalSeconds
+            ? Math.min(100, (Math.max(0, usedSeconds - bonusConsumed) / totalSeconds) * 100)
+            : 0;
+          const bonusPercent = totalSeconds
+            ? Math.min(100 - regularPercent, (bonusConsumed / totalSeconds) * 100)
             : 0;
           const onlineLabel =
             online === 'online' ? 'Online' : online === 'offline' ? 'Offline' : 'Unbekannt';
@@ -80,10 +86,14 @@ export default function DashboardView({ tvs, status, onSelectTv }: DashboardView
                 <span>Heute genutzt</span>
                 <strong>
                   {Math.floor(usedSeconds / 60)} min {dailyLimit ? `/ ${dailyLimit} min` : ''}
+                  {bonusSeconds > 0 && (
+                    <span className="bonus-credit"> + {Math.ceil(bonusSeconds / 60)} min</span>
+                  )}
                 </strong>
               </div>
-              <div className="bar">
-                <span style={{ width: `${usagePercent}%` }} />
+              <div className="bar usage-bar">
+                <span style={{ width: `${regularPercent}%` }} />
+                <span className="bonus-usage" style={{ width: `${bonusPercent}%` }} />
               </div>
 
               <div className="card-foot">

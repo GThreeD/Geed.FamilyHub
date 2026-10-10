@@ -1252,3 +1252,13 @@ th {
     transition: none;
   }
 }
+
+.usage-head .bonus-credit {
+  color: #17864b;
+}
+.usage-bar {
+  display: flex;
+}
+.usage-bar .bonus-usage {
+  background: #22a45d;
+}

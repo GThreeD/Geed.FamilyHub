@@ -26,7 +26,8 @@ class ScheduleManager:
             scheduled = any(start <= current_time < end for start,end in custom)
         else:
             scheduled = inside_window(tv.schedule, now, tv.timezone)
-        bonus = self.data.available_bonus(tv.tv_id,now_utc.isoformat())
+        bonus_totals = self.data.bonus_totals(tv.tv_id, now_utc.isoformat())
+        bonus = bonus_totals['granted'] - bonus_totals['consumed']
         regular_allowed = tv.enabled and scheduled and daily_ok and weekly_ok
         allowed = tv.enabled and (regular_allowed or bonus > 0)
         reason = ('disabled' if not tv.enabled else 'schedule_or_limit' if not allowed
@@ -36,7 +37,8 @@ class ScheduleManager:
             allowed = False
             reason = 'manual_lock'
         return {'locked':bool(lock),'lock':lock,'allowed':allowed,'reason':reason,'regular_allowed':regular_allowed,
-                'bonus_remaining_seconds':bonus,'used_today_seconds':usage['day'],
+                'bonus_granted_seconds':bonus_totals['granted'],
+                'bonus_consumed_seconds':bonus_totals['consumed'],'bonus_remaining_seconds':bonus,'used_today_seconds':usage['day'],
                 'used_week_seconds':usage['week'],'within_schedule':scheduled,
                 'schedule_exception':exception['name'] if exception else None}
 
