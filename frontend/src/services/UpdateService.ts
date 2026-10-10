@@ -9,10 +9,14 @@ export class UpdateService {
   }
 
   static prepare() {
-    return HttpService.request<PreparedUpdate>('/api/updates/prepare', 'POST');
+    return HttpService.request<PreparedUpdate>('/api/updates/prepare', 'POST', {});
   }
 
   static install() {
-    return HttpService.request<{ ok: boolean; message: string }>('/api/updates/install', 'POST');
+    return HttpService.request<{ ok: boolean; message: string }>(
+      '/api/updates/install',
+      'POST',
+      {},
+    );
   }
 }

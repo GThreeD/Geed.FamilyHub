@@ -73,7 +73,15 @@ class HttpApi:
                     if (origin_parts.netloc != self.headers.get('Host') or origin_parts.scheme not in ('http','https')) and not allowed_dev:
                         raise AuthError('Ungültiger Origin',403)
                 parts=path.strip('/').split('/')
-                body=self.body_json() if method in ('POST','PUT','PATCH') else None
+                # These actions do not accept JSON input. In particular, a POST
+                # without a body must not fail before reaching the updater.
+                bodyless_actions = {
+                    ('POST', '/api/updates/prepare'),
+                    ('POST', '/api/updates/install'),
+                    ('POST', '/api/auth/logout'),
+                }
+                body = (self.body_json() if method in ('POST', 'PUT', 'PATCH')
+                        and (method, path) not in bodyless_actions else None)
                 if path=='/api/auth/setup-status' and method=='GET':
                     return self.reply({'needs_setup':outer.data.user_count()==0})
                 if path=='/api/auth/setup' and method=='POST':
