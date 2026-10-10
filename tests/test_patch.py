@@ -20,9 +20,9 @@ class PatchTests(unittest.TestCase):
     def test_migration_idempotent(self):
         path=self.directory/'tv.db'
         db=DatabaseData(path)
-        self.assertEqual(len(db.migration_history()),6)
+        self.assertEqual(len(db.migration_history()),7)
         DatabaseData(path)
-        self.assertEqual(len(db.migration_history()),6)
+        self.assertEqual(len(db.migration_history()),7)
 
     def test_legacy_database_upgrade_preserves_data(self):
         path=self.directory/'tv.db'
@@ -35,7 +35,7 @@ class PatchTests(unittest.TestCase):
             conn.execute('DROP TABLE __EFMigrationsHistory')
             conn.execute('PRAGMA user_version=1')
         upgraded=DatabaseData(path)
-        self.assertEqual(len(upgraded.migration_history()),6)
+        self.assertEqual(len(upgraded.migration_history()),7)
         self.assertEqual(TVManager(upgraded).get('test'),tv)
 
     def test_json_import_once_and_api_facade(self):
@@ -50,7 +50,7 @@ class PatchTests(unittest.TestCase):
         self.assertTrue((self.directory/'config.json.imported').exists())
         app2=SamsungApplication(self.directory)
         self.assertEqual(len(app2.facade.get_tvs()),1)
-        self.assertEqual(len(app2.data.migration_history()),6)
+        self.assertEqual(len(app2.data.migration_history()),7)
         settings=app2.settings.get()
         settings.pop('id')
         settings['armed']=False

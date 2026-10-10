@@ -85,8 +85,8 @@ class RuntimeConfig:
     power_hold_seconds: float = 2.0
 
     def validate(self) -> 'RuntimeConfig':
-        for field, lo, hi in [('poll_seconds', 2, 60), ('confirm_online_checks', 2, 20),
-                              ('confirm_offline_checks', 2, 20), ('cooldown_seconds', 15, 3600)]:
+        for field, lo, hi in [('poll_seconds', 2, 60), ('confirm_online_checks', 1, 20),
+                              ('confirm_offline_checks', 2, 20), ('cooldown_seconds', 5, 3600)]:
             val = getattr(self, field)
             if type(val) is not int or not lo <= val <= hi:
                 raise ValidationError(f'{field}: erwartet {lo}..{hi}')

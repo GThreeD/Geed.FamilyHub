@@ -17,6 +17,8 @@ class Observation:
     dry_logged: bool = False
     last_checked_at: str | None = None
     last_reachable: bool | None = None
+    last_power_state: str = "unknown"
+    last_power_source: str = "unknown"
 
 class AutomationManager:
     def __init__(self,tv_manager,schedule_manager,data,samsung,settings,armed=False):
@@ -33,11 +35,26 @@ class AutomationManager:
         monotonic = time.monotonic() if monotonic is None else monotonic
         for tv in self.tvs.list():
             st=self.state.setdefault(tv.tv_id,Observation())
-            reachable=self.samsung.is_reachable(tv)
+            # Older Samsung adapters and test doubles only expose is_reachable.
+            if hasattr(self.samsung, 'observe_power'):
+                probe=self.samsung.observe_power(tv)
+                power_state=probe.state
+                power_source=probe.source
+            else:
+                power_state='on' if self.samsung.is_reachable(tv) else 'off'
+                power_source='legacy'
+            reachable=(power_state=='on')
+            confirmed_off=(power_state in ('standby', 'off'))
+            st.last_power_state=power_state
+            st.last_power_source=power_source
             st.last_reachable=reachable
             st.last_checked_at=now.isoformat()
             st.online_count = st.online_count+1 if reachable else 0
-            st.offline_count = st.offline_count+1 if not reachable else 0
+            st.offline_count = st.offline_count+1 if confirmed_off else 0
+            # Unknown must not be used as evidence of ON or OFF.
+            if power_state=='unknown':
+                st.online_count=0
+                st.offline_count=0
             if st.offline_count>=self.settings.confirm_offline_checks:
                 st.dry_logged=False
             was_confirmed=st.confirmed_online
@@ -74,20 +91,27 @@ class AutomationManager:
             st.last_monotonic=monotonic
             st.last_day=local_day
             status=self.schedules.evaluate(tv,now)
-            observation=(st.confirmed_online,status['reason'],reachable)
+            observation=(st.confirmed_online,status['reason'],reachable,power_state,power_source)
             if observation!=st.last_state:
-                logger.info('%s erreichbar=%s bestaetigt_online=%s berechtigt=%s grund=%s heute=%ss woche=%ss bonus=%ss',
-                    tv.name,reachable,st.confirmed_online,status['allowed'],status['reason'],
+                logger.info('%s power=%s quelle=%s erreichbar=%s bestaetigt_online=%s berechtigt=%s grund=%s heute=%ss woche=%ss bonus=%ss',
+                    tv.name,power_state,power_source,reachable,st.confirmed_online,status['allowed'],status['reason'],
                     status['used_today_seconds'],status['used_week_seconds'],status['bonus_remaining_seconds'])
                 st.last_state=observation
-            # Offline confirmation arms future attempt, persists over restarts.
+            # A confirmed OFF cycle ends the prior power attempt. Clear both
+            # the toggle guard and its cooldown: switching the TV back ON is a
+            # new power cycle, which should be enforced promptly. Never clear
+            # the guard while the TV is reachable (power key is a toggle).
             persistent=self.data.runtime_state(tv.tv_id)
-            if st.offline_count>=self.settings.confirm_offline_checks and persistent['blocked_until_offline']:
-                self.data.set_runtime(tv.tv_id,persistent['last_attempt_at'],False)
+            if st.offline_count>=self.settings.confirm_offline_checks and (
+                persistent['blocked_until_offline'] or persistent['last_attempt_at']
+            ):
+                self.data.set_runtime(tv.tv_id,None,False)
+                logger.info('%s: Standby/Offline bestaetigt; Power-Sperre zurueckgesetzt',tv.name)
                 persistent=self.data.runtime_state(tv.tv_id)
             if not st.confirmed_online or not reachable or status['allowed'] or not tv.enabled:
                 continue
             if persistent['blocked_until_offline']:
+                logger.debug('%s: Power-Versuch blockiert; warte auf bestaetigten Standby/Offline', tv.name)
                 continue
             if persistent['last_attempt_at']:
                 previous=datetime.fromisoformat(persistent['last_attempt_at'])
@@ -99,14 +123,23 @@ class AutomationManager:
                     st.dry_logged=True
                 continue
             # Recheck immediately; power key is a toggle and might turn the TV ON.
-            if not self.samsung.is_reachable(tv):
+            if hasattr(self.samsung, 'observe_power'):
+                if self.samsung.observe_power(tv).state != 'on':
+                    continue
+            elif not self.samsung.is_reachable(tv):
                 continue
             # Persist guard BEFORE potentially irreversible external action.
             self.data.set_runtime(tv.tv_id,now.isoformat(),True)
-            self.data.log_event(tv.tv_id,now.isoformat(),'power_attempt','KEY_POWER hold')
+            self.data.log_event(tv.tv_id,now.isoformat(),'power_attempt','KEY_POWER short press')
             try:
                 self.samsung.power_hold(tv,self.settings.power_hold_seconds)
                 logger.warning('%s: KEY_POWER gesendet; Wirkung nicht garantiert',tv.name)
-            except Exception:
-                logger.exception('%s: Power-Befehl fehlgeschlagen (kein Auto-Retry bis offline)',tv.name)
+            except Exception as exc:
+                from app.services.samsung_service import PowerConnectionNotEstablished
+                if isinstance(exc, PowerConnectionNotEstablished):
+                    # Nothing was sent; next cycle may retry after a fresh ON check.
+                    self.data.set_runtime(tv.tv_id,None,False)
+                    logger.warning('%s: Keine WebSocket-Verbindung; neuer Versuch nach erneuter ON-Pruefung',tv.name)
+                    continue
+                logger.exception('%s: Power-Befehl unklar/fehlgeschlagen (kein Auto-Retry bis Standby)',tv.name)
                 self.data.log_event(tv.tv_id,now.isoformat(),'power_error','Fehler beim Senden')

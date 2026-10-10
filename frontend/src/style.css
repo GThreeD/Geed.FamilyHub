@@ -1180,3 +1180,75 @@ th {
     padding: 20px;
   }
 }
+
+/* Compact accessible on/off switch for TV lock enforcement. */
+.lock-switch-row {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 12px;
+  cursor: pointer;
+  margin: 18px 0;
+  color: inherit;
+}
+.lock-switch-title {
+  font-weight: 650;
+}
+.lock-switch-control {
+  position: relative;
+  display: inline-flex;
+  flex: 0 0 auto;
+  width: 48px;
+  height: 28px;
+}
+.lock-switch-control input {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  min-width: 0;
+  margin: 0;
+  opacity: 0;
+  cursor: pointer;
+  z-index: 1;
+}
+.lock-switch-track {
+  display: block;
+  width: 48px;
+  height: 28px;
+  border-radius: 999px;
+  background: #9caabd;
+  transition: background 160ms ease;
+}
+.lock-switch-track::after {
+  content: '';
+  display: block;
+  width: 20px;
+  height: 20px;
+  margin: 4px;
+  border-radius: 50%;
+  background: #fff;
+  box-shadow: 0 1px 3px #0003;
+  transition: transform 160ms ease;
+}
+.lock-switch-control input:checked + .lock-switch-track {
+  background: #2563eb;
+}
+.lock-switch-control input:checked + .lock-switch-track::after {
+  transform: translateX(20px);
+}
+.lock-switch-control input:focus-visible + .lock-switch-track {
+  outline: 3px solid #8cb6ff;
+  outline-offset: 3px;
+}
+.lock-switch-state {
+  font-size: 13px;
+  color: inherit;
+  opacity: 0.78;
+}
+@media (prefers-reduced-motion: reduce) {
+  .lock-switch-track,
+  .lock-switch-track::after {
+    transition: none;
+  }
+}

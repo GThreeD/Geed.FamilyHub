@@ -8,6 +8,7 @@
     "format": "prettier --write src",
     "format:check": "prettier --check src",
     "build": "npm run format:check && tsc -b && vite build",
+    "onlybuild": "tsc -b && vite build",
     "postinstall": "npm run build"
   },
   "dependencies": {

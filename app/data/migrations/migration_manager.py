@@ -8,6 +8,7 @@ AUTH = '20261009180000_UsersAndSessions'
 EXCEPTIONS = '20261009190000_ScheduleExceptions'
 SESSIONS = '20261009200000_UsageSessions'
 LOCKS = '20261009210000_TemporaryTvLocks'
+FAST_SETTINGS = '20261010120000_FasterMonitorSettings'
 
 class MigrationManager:
     def __init__(self, db):
@@ -21,7 +22,7 @@ class MigrationManager:
              AppliedAt TEXT NOT NULL)''')
         current = {row[0] for row in self.db.execute('SELECT MigrationId FROM __EFMigrationsHistory')}
         legacy = self.db.execute('PRAGMA user_version').fetchone()[0]
-        if legacy > 6:
+        if legacy > 7:
             raise RuntimeError('Datenbank stammt aus einer neueren Version')
         if BASELINE not in current:
             if legacy >= 1 or self._exists('tvs'):
@@ -117,7 +118,23 @@ class MigrationManager:
                 CHECK((mode='indefinite' AND expires_at IS NULL) OR
                       (mode='until_tomorrow' AND expires_at IS NOT NULL)));
             """, LOCKS)
-        self.db.execute('PRAGMA user_version=6')
+        current = {row[0] for row in self.db.execute('SELECT MigrationId FROM __EFMigrationsHistory')}
+        if FAST_SETTINGS not in current:
+            # SQLite cannot alter CHECK constraints in place. Preserve the existing row
+            # while rebuilding only app_settings (other application tables are untouched).
+            self._sql('''ALTER TABLE app_settings RENAME TO app_settings_previous;
+                CREATE TABLE app_settings (
+                    id INTEGER PRIMARY KEY CHECK(id=1),
+                    poll_seconds INTEGER NOT NULL CHECK(poll_seconds BETWEEN 2 AND 60),
+                    confirm_online_checks INTEGER NOT NULL CHECK(confirm_online_checks BETWEEN 1 AND 20),
+                    confirm_offline_checks INTEGER NOT NULL CHECK(confirm_offline_checks BETWEEN 2 AND 20),
+                    cooldown_seconds INTEGER NOT NULL CHECK(cooldown_seconds BETWEEN 5 AND 3600),
+                    power_hold_seconds REAL NOT NULL CHECK(power_hold_seconds BETWEEN 0.5 AND 5),
+                    armed INTEGER NOT NULL DEFAULT 0 CHECK(armed IN (0,1)));
+                INSERT INTO app_settings SELECT * FROM app_settings_previous;
+                DROP TABLE app_settings_previous;
+            ''', FAST_SETTINGS)
+        self.db.execute('PRAGMA user_version=7')
         self.db.commit()
 
     def _exists(self, table):

@@ -59,7 +59,7 @@ class Tests(unittest.TestCase):
         fake.online=True
         for i in range(4):
             engine.tick(self.now+timedelta(seconds=50+i*5),150+i*5)
-        self.assertEqual(fake.calls,1) # cooldown persists
+        self.assertEqual(fake.calls,2) # a verified OFF cycle permits a new ON cycle
         future=self.now+timedelta(seconds=200)
         fake.online=False
         for i in range(3):
@@ -67,7 +67,7 @@ class Tests(unittest.TestCase):
         fake.online=True
         for i in range(3):
             engine.tick(future+timedelta(seconds=15+i*5),315+i*5)
-        self.assertEqual(fake.calls,2)
+        self.assertEqual(fake.calls,3)
 
     def test_store_roundtrip(self):
         self.assertEqual(self.tvs.get('anessa'),self.tv)

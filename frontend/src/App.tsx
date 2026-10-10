@@ -127,7 +127,9 @@ export default function App() {
   }, [user?.id]);
   useEffect(() => {
     if (!user || tvs.length === 0) return;
-    const timer = setInterval(() => void refreshStatus(tvs).catch(console.error), 15000);
+    const timer = setInterval(() => {
+      if (!document.hidden) void refreshStatus(tvs).catch(console.error);
+    }, 3000);
     return () => clearInterval(timer);
   }, [user?.id, tvs]);
   async function act(f: () => Promise<unknown>) {

@@ -19,9 +19,9 @@ class DevicesLocksStatsTests(unittest.TestCase):
         self.tvs.save(self.tv)
 
     def test_migrations_are_idempotent(self):
-        self.assertEqual(len(self.data.migration_history()),6)
+        self.assertEqual(len(self.data.migration_history()),7)
         DatabaseData(self.data.path)
-        self.assertEqual(len(self.data.migration_history()),6)
+        self.assertEqual(len(self.data.migration_history()),7)
 
     def test_lock_overrides_schedule_and_bonus(self):
         mgr=ScheduleManager(self.data)
