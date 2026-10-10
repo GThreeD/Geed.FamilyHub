@@ -53,9 +53,10 @@ export default function App() {
     x: number;
     y: number;
     active: boolean;
-    textField: boolean;
+    control: boolean;
     startedAt: number;
   } | null>(null);
+  const swipeClickUntil = useRef(0);
   const pagerRef = useRef<HTMLDivElement>(null);
   const [pageHeight, setPageHeight] = useState<number>();
 
@@ -68,6 +69,20 @@ export default function App() {
     observer.observe(page);
     return () => observer.disconnect();
   }, [view, user?.id]);
+  useEffect(() => {
+    const viewport = pagerRef.current?.parentElement;
+    if (!viewport) return;
+    const finishSwipe = (event: globalThis.TouchEvent) => {
+      if (!swipeStart.current?.active) return;
+      // React touch listeners are passive. Cancel the native tap here so a swipe
+      // over a select/time field cannot open its picker before click handling.
+      if (event.cancelable) event.preventDefault();
+      swipeClickUntil.current = Date.now() + 600;
+    };
+    viewport.addEventListener('touchend', finishSwipe, { capture: true, passive: false });
+    return () => viewport.removeEventListener('touchend', finishSwipe, { capture: true });
+  }, [view, user?.id]);
+
   const tabRefs = useRef<Partial<Record<View, HTMLButtonElement | null>>>({});
 
   useEffect(() => {
@@ -189,21 +204,19 @@ export default function App() {
   const tabWidth = () => pagerRef.current?.clientWidth || window.innerWidth;
   function swipeTarget(target: EventTarget | null) {
     const element = target instanceof Element ? target : null;
-    // Controls with their own gestures (e.g. sliders and the bonus wheel) stay protected.
-    if (
+    // Protect drag handles and controls with their own horizontal gesture.
+    // Ordinary fields and buttons still allow paging; a tap keeps its normal action.
+    const blocked = Boolean(
       element?.closest(
-        'select, button, a, [role="slider"], [data-no-swipe], .modal, .wheel, [contenteditable="true"]',
-      )
-    )
-      return { blocked: true, textField: false };
-    const field = element?.closest('input, textarea');
-    if (field instanceof HTMLInputElement) {
-      const textTypes = ['text', 'search', 'email', 'url', 'tel', 'number', 'password'];
-      return { blocked: !textTypes.includes(field.type), textField: true };
-    }
-    return { blocked: false, textField: field instanceof HTMLTextAreaElement };
+        '.bonus-wheel-handle, [role="slider"]:not(.bonus-wheel), input[type="range"], [data-no-swipe], .modal, .wheel, [contenteditable="true"]',
+      ),
+    );
+    const control = Boolean(element?.closest('input, textarea, select, button, a'));
+    return { blocked, control };
   }
   function onTouchStart(event: TouchEvent<HTMLElement>) {
+    swipeStart.current = null;
+    swipeClickUntil.current = 0;
     if (event.touches.length !== 1 || actionTvId || accountOpen || !isPagerView) return;
     const target = swipeTarget(event.target);
     if (target.blocked) return;
@@ -211,28 +224,33 @@ export default function App() {
       x: event.touches[0].clientX,
       y: event.touches[0].clientY,
       active: false,
-      textField: target.textField,
+      control: target.control,
       startedAt: Date.now(),
     };
   }
   function onTouchMove(event: TouchEvent<HTMLElement>) {
     const start = swipeStart.current;
     const track = pagerRef.current;
-    if (!start || !track || event.touches.length !== 1) return;
+    if (!start || !track) return;
+    if (event.touches.length !== 1) {
+      onTouchCancel();
+      return;
+    }
     const dx = event.touches[0].clientX - start.x;
     const dy = event.touches[0].clientY - start.y;
-    if (!start.active && Math.abs(dy) > Math.abs(dx)) {
+    if (!start.active && Math.abs(dy) > 12 && Math.abs(dy) > Math.abs(dx) * 1.25) {
       swipeStart.current = null;
       return;
     }
-    // A short horizontal drag pages even over text inputs; long presses still select text.
-    if (start.textField && !start.active && Date.now() - start.startedAt > 450) {
+    // A horizontal drag pages over controls; long presses keep their native behavior.
+    if (start.control && !start.active && Date.now() - start.startedAt > 450) {
       swipeStart.current = null;
       return;
     }
-    const threshold = start.textField ? 28 : 12;
+    const threshold = start.control ? 28 : 12;
     if (Math.abs(dx) > threshold && Math.abs(dx) > Math.abs(dy) * 1.25) start.active = true;
     if (!start.active) return;
+    swipeClickUntil.current = Date.now() + 600;
     const boundary = (dx > 0 && activeIndex === 0) || (dx < 0 && activeIndex === nav.length - 1);
     const offset = boundary ? dx * 0.2 : dx;
     track.style.transition = 'none';
@@ -242,6 +260,7 @@ export default function App() {
     const start = swipeStart.current;
     swipeStart.current = null;
     if (!start || !start.active || !pagerRef.current || event.changedTouches.length !== 1) return;
+    swipeClickUntil.current = Date.now() + 600;
     const dx = event.changedTouches[0].clientX - start.x;
     const next = activeIndex + (dx < 0 ? 1 : -1);
     const shouldChange =
@@ -393,6 +412,12 @@ export default function App() {
               overflow: 'hidden',
               minWidth: 0,
               touchAction: 'pan-y',
+            }}
+            onClickCapture={(event) => {
+              if (Date.now() < swipeClickUntil.current) {
+                event.preventDefault();
+                event.stopPropagation();
+              }
             }}
             onTouchStart={onTouchStart}
             onTouchMove={onTouchMove}

@@ -25,7 +25,7 @@ function normalizeAngleDelta(delta: number): number {
 }
 
 export default function BonusWheel({ minutes, onChange, disabled = false }: BonusWheelProps) {
-  const drag = useRef<{ angle: number; value: number } | null>(null);
+  const drag = useRef<{ pointerId: number; angle: number; value: number } | null>(null);
   const [dragging, setDragging] = useState(false);
 
   const minuteWithinRevolution = minutes % MINUTES_PER_REVOLUTION;
@@ -38,18 +38,20 @@ export default function BonusWheel({ minutes, onChange, disabled = false }: Bonu
   function beginDrag(event: PointerEvent<SVGSVGElement>) {
     if (
       disabled ||
+      event.button !== 0 ||
+      drag.current !== null ||
       !(event.target instanceof Element) ||
       !event.target.classList.contains('bonus-wheel-handle')
     )
       return;
     event.preventDefault();
     event.currentTarget.setPointerCapture(event.pointerId);
-    drag.current = { angle: angleFromPointer(event), value: minutes };
+    drag.current = { pointerId: event.pointerId, angle: angleFromPointer(event), value: minutes };
     setDragging(true);
   }
 
   function moveDrag(event: PointerEvent<SVGSVGElement>) {
-    if (!drag.current || disabled) return;
+    if (!drag.current || drag.current.pointerId !== event.pointerId || disabled) return;
     const nextAngle = angleFromPointer(event);
     const delta = normalizeAngleDelta(nextAngle - drag.current.angle);
     // Store the unrounded fractional value, so tiny movements accumulate smoothly.
@@ -57,11 +59,12 @@ export default function BonusWheel({ minutes, onChange, disabled = false }: Bonu
       0,
       Math.min(MAX_MINUTES, drag.current.value + (delta / (2 * Math.PI)) * MINUTES_PER_REVOLUTION),
     );
-    drag.current = { angle: nextAngle, value: rawValue };
+    drag.current = { pointerId: event.pointerId, angle: nextAngle, value: rawValue };
     onChange(Math.round(rawValue));
   }
 
   function endDrag(event: PointerEvent<SVGSVGElement>) {
+    if (!drag.current || drag.current.pointerId !== event.pointerId) return;
     drag.current = null;
     setDragging(false);
     if (event.currentTarget.hasPointerCapture(event.pointerId)) {
@@ -105,7 +108,11 @@ export default function BonusWheel({ minutes, onChange, disabled = false }: Bonu
         onPointerMove={moveDrag}
         onPointerUp={endDrag}
         onPointerCancel={endDrag}
-        onLostPointerCapture={endDrag}
+        onLostPointerCapture={(event) => {
+          // Ignore capture changes bubbling from a child with implicit touch capture.
+          if (event.target === event.currentTarget) endDrag(event);
+        }}
+        onDragStart={(event) => event.preventDefault()}
         onKeyDown={onKeyboard}
       >
         <circle cx="120" cy="120" r="109" className="bonus-wheel-background" />

@@ -55,10 +55,6 @@ export default function BonusEditor({ tvId, status, minutes, onChange, canEdit, 
       <div className="note">
         Aktuelles Bonusguthaben: {Math.ceil((status?.bonus_remaining_seconds || 0) / 60)} Minuten
       </div>
-      <p className="muted small">
-        Bonus gilt nur heute. Bei mehreren Zeitfenstern gilt er für das aktuelle Fenster
-        einschließlich der Bonusverlängerung, höchstens bis zum nächsten Fenster.
-      </p>
       {tvId && (
         <BonusHistory
           key={tvId}
