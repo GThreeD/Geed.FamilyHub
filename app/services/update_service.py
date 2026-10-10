@@ -85,8 +85,8 @@ class UpdateService:
         meta = json.loads(ready_file.read_text())
         if hashlib.sha256(archive.read_bytes()).hexdigest() != meta['sha256']:
             raise ValidationError('Release-Prüfsumme geändert')
-        if sys.platform != 'linux' or 'com.termux' not in str(self.root):
-            raise ValidationError('Installation über Weboberfläche nur unter Termux möglich')
+        # The updater runs on the server, regardless of the client browser OS.
+        # Authentication and authorization are enforced by the HTTP API.
         marker = self.stage / 'installing.lock'
         try:
             descriptor = os.open(marker, os.O_CREAT | os.O_EXCL | os.O_WRONLY, 0o600)

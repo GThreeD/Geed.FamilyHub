@@ -166,13 +166,13 @@ class HttpApi:
                 if path=='/api/settings' and method=='PUT':
                     outer.auth.require(user,'config');return self.reply(outer.settings.update(body))
                 if path=='/api/updates/latest' and method=='GET':
-                    outer.auth.require(user,'users')
+                    if user['role'] != 'admin': raise AuthError('Nur Administratoren dürfen Updates verwalten',403)
                     return self.reply(outer.updates.latest())
                 if path=='/api/updates/prepare' and method=='POST':
-                    outer.auth.require(user,'users')
+                    if user['role'] != 'admin': raise AuthError('Nur Administratoren dürfen Updates verwalten',403)
                     return self.reply(outer.updates.prepare())
                 if path=='/api/updates/install' and method=='POST':
-                    outer.auth.require(user,'users')
+                    if user['role'] != 'admin': raise AuthError('Nur Administratoren dürfen Updates installieren',403)
                     return self.reply(outer.updates.install(),202)
                 if path=='/api/migrations' and method=='GET':
                     outer.auth.require(user,'users');return self.reply(outer.data.migration_history())

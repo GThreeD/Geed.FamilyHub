@@ -1,5 +1,8 @@
 import tempfile
 import unittest
+import hashlib
+import json
+from unittest.mock import patch
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from app.data.database_data import DatabaseData
@@ -28,6 +31,22 @@ class BonusUpdateTests(unittest.TestCase):
             service = UpdateService(Path(directory))
             with self.assertRaises(Exception):
                 service.install()
+
+
+    def test_install_starts_worker_on_arbitrary_server_path(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory) / 'dedicated-server'
+            service = UpdateService(root)
+            service.stage.mkdir(parents=True)
+            archive = service.stage / 'download.tar.gz'
+            archive.write_bytes(b'verified-example')
+            (service.stage / 'ready.json').write_text(json.dumps({
+                'tag': 'v0.1.12', 'sha256': hashlib.sha256(archive.read_bytes()).hexdigest()
+            }))
+            with patch('app.services.update_service.subprocess.Popen') as popen:
+                result = service.install()
+            self.assertTrue(result['ok'])
+            self.assertEqual(popen.call_args.args[0][1:3], ['-m', 'app.services.update_worker'])
 
 if __name__ == '__main__':
     unittest.main()

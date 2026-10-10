@@ -1,4 +1,4 @@
-"""Independent Termux updater. Stops the old server only after a verified staging copy."""
+"""Independent server-side updater for POSIX hosts; installs backend and frontend."""
 from __future__ import annotations
 import hashlib
 import json
