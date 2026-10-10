@@ -3,7 +3,7 @@ import json
 from datetime import date
 from zoneinfo import ZoneInfo
 from datetime import datetime, timedelta, timezone
-from app.helpers.time_helpers import day_key, week_key, inside_window
+from app.helpers.time_helpers import day_key, week_key, inside_window, MAX_USAGE_INTERVAL_SECONDS
 from app.models.schemas import ValidationError, DAYS
 
 class ScheduleManager:
@@ -80,8 +80,8 @@ class ScheduleManager:
         self.data.log_event(tv_id,now.isoformat(),'bonus_granted',f'{minutes} min bis {expiry.isoformat()}')
 
     def add_usage(self, tv, seconds: int, now: datetime, reason: str):
-        if not 0 < seconds <= 60:
-            raise ValidationError('Nutzungsintervall ausserhalb 1..60s')
+        if type(seconds) is not int or not 0 < seconds <= MAX_USAGE_INTERVAL_SECONDS:
+            raise ValidationError(f'Nutzungsintervall ausserhalb 1..{MAX_USAGE_INTERVAL_SECONDS}s')
         bonus_to_consume = seconds if reason == 'bonus' else 0
         self.data.record_usage(tv.tv_id,day_key(now,tv.timezone),week_key(now,tv.timezone),
                                seconds,bonus_to_consume,now.astimezone(timezone.utc).isoformat())

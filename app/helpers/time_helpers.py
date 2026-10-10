@@ -2,6 +2,8 @@ from datetime import datetime
 from zoneinfo import ZoneInfo
 from app.models.schemas import DAYS, valid_time
 
+MAX_USAGE_INTERVAL_SECONDS = 120
+
 
 def day_key(now: datetime, timezone: str) -> str:
     return now.astimezone(ZoneInfo(timezone)).date().isoformat()

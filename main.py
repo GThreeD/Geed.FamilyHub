@@ -4,6 +4,7 @@ import json
 import logging
 import os
 import threading
+import time
 from dataclasses import asdict
 from pathlib import Path
 from datetime import datetime, timezone
@@ -101,6 +102,7 @@ class SamsungApplication:
 
     def monitor(self):
         while not self.stop_event.is_set():
+            cycle_started = time.monotonic()
             settings=self.settings.get()
             config=RuntimeConfig(**{k:settings[k] for k in RuntimeConfig.__dataclass_fields__}).validate()
             # Live changes via API take effect in the next monitoring cycle.
@@ -116,7 +118,10 @@ class SamsungApplication:
                     self._engine.tick()
             except Exception:
                 logging.exception('Fehler im Monitor; Überwachung wird fortgesetzt')
-            self.stop_event.wait(config.poll_seconds)
+            # Probe/command duration is part of the poll interval, not an extra
+            # delay added after every cycle.
+            remaining = max(0, config.poll_seconds - (time.monotonic() - cycle_started))
+            self.stop_event.wait(remaining)
 
     def run(self):
         thread=threading.Thread(target=self.monitor,name='tv-monitor',daemon=True)

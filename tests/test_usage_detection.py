@@ -10,7 +10,8 @@ from app.managers.automation_manager import AutomationManager
 from app.managers.schedule_manager import ScheduleManager
 from app.managers.tv_manager import TVManager
 from app.models.schemas import RuntimeConfig, TVConfig
-from app.services.samsung_service import SamsungService
+from app.services.samsung_service import SamsungService, PowerObservation
+from unittest.mock import Mock, call
 from app.api.handlers import TVApi
 
 DAYS=('mon','tue','wed','thu','fri','sat','sun')
@@ -64,6 +65,74 @@ class UsageDetectionTests(unittest.TestCase):
         status=facade.get_status('test')
         self.assertEqual(status['online_observation']['state'],'offline')
         self.assertTrue(status['usage_is_estimate'])
+
+    def test_slow_network_polls_still_count_actual_online_duration(self):
+        self.samsung.online = True
+        for offset in (0, 10, 20, 30, 40):
+            self.step(offset)
+        self.assertEqual(self.schedule.evaluate(self.tv, self.start)['used_today_seconds'], 20)
+
+    def test_restart_resumes_saved_52_minutes_without_backfilling_downtime(self):
+        self.data.record_usage(self.tv.tv_id, '2026-10-09', '2026-W41', 52*60, 0, self.start.isoformat())
+        self.data.start_usage_session(self.tv.tv_id, self.start.isoformat())
+        # Reload persistence and discard in-memory observations as an update does.
+        self.data = DatabaseData(self.data.path)
+        self.tvs = TVManager(self.data)
+        self.schedule = ScheduleManager(self.data)
+        self.samsung.online = True
+        self.engine = AutomationManager(self.tvs, self.schedule, self.data, self.samsung, RuntimeConfig(), False)
+        for offset in (600, 610, 620):
+            self.step(offset)
+        self.assertEqual(self.schedule.evaluate(self.tv, self.start)['used_today_seconds'], 52*60)
+        self.step(630)
+        self.step(640)
+        self.assertEqual(self.schedule.evaluate(self.tv, self.start)['used_today_seconds'], 52*60+20)
+        self.assertEqual(self.data.usage_statistics(self.tv.tv_id)['sessions'][0]['duration_seconds'], 20)
+
+    def test_subsecond_poll_time_accumulates_without_rounding_loss(self):
+        self.samsung.online = True
+        for offset in (0, 5.5, 11, 16.5, 22):
+            self.step(offset)
+        self.assertEqual(self.schedule.evaluate(self.tv, self.start)['used_today_seconds'], 11)
+
+    def test_long_unobserved_pause_is_not_backfilled_but_counting_recovers(self):
+        self.samsung.online = True
+        for offset in (0, 5, 10, 15, 600, 605):
+            self.step(offset)
+        self.assertEqual(self.schedule.evaluate(self.tv, self.start)['used_today_seconds'], 10)
+
+    def test_unknown_sample_does_not_count_as_contiguous_online_time(self):
+        samsung = Mock()
+        samsung.observe_power.return_value = PowerObservation('on', 'api')
+        self.engine = AutomationManager(self.tvs, self.schedule, self.data, samsung, RuntimeConfig(), False)
+        for offset in (0, 5, 10):
+            self.step(offset)
+        samsung.observe_power.return_value = PowerObservation('unknown', 'network')
+        self.step(15)
+        samsung.observe_power.return_value = PowerObservation('on', 'api')
+        self.step(20)
+        self.step(25)
+        self.assertEqual(self.schedule.evaluate(self.tv, self.start)['used_today_seconds'], 5)
+
+    def test_60_second_poll_with_network_overhead_counts_full_interval(self):
+        self.samsung.online = True
+        self.engine = AutomationManager(self.tvs, self.schedule, self.data, self.samsung,
+                                        RuntimeConfig(poll_seconds=60), False)
+        for offset in (0, 62, 124, 186):
+            self.step(offset)
+        self.assertEqual(self.schedule.evaluate(self.tv, self.start)['used_today_seconds'], 62)
+
+    def test_monitor_wait_subtracts_network_scan_duration(self):
+        from main import SamsungApplication
+        app = SamsungApplication(Path(self.tmp.name) / 'monitor')
+        app._engine = Mock()
+        app.stop_event = Mock()
+        app.stop_event.is_set.side_effect = [False, False, True]
+        # First scan takes 2s of a 5s cycle; the second takes longer than 5s.
+        with patch('main.time.monotonic', side_effect=[0, 2, 5, 12]):
+            app.monitor()
+        self.assertEqual(app.stop_event.wait.call_args_list, [call(3), call(0)])
+        self.assertEqual(app._engine.tick.call_count, 2)
 
     def test_requires_both_ports(self):
         seen=[]

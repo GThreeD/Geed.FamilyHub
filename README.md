@@ -139,3 +139,9 @@ bleiben wirksam. Jeder automatische Versuch setzt weiterhin ein gesperrtes,
 aktiviertes Gerät, eingeschalteten Sperrmodus und eine frische ON-Erkennung direkt
 vor dem Senden voraus. Bei OFF, Standby oder unbekanntem Zustand wird nicht erneut
 gesendet. Das gilt auch für den manuellen Power-Befehl im Geräte-Popup.
+
+Die Nutzungszählung liest den Tages- und Wochenstand bei jeder Auswertung aus
+SQLite und setzt nach einem Update oder Neustart auf diesem Stand fort. Sie bucht
+die tatsächliche Zeit zwischen aufeinanderfolgenden bestätigten ON-Messungen,
+einschließlich üblicher Netzwerkverzögerungen. Unbeobachtete Neustartzeiten und
+lange Messlücken werden nicht rückwirkend als Nutzung gebucht.

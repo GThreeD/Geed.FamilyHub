@@ -4,6 +4,7 @@ import time
 from dataclasses import dataclass
 from datetime import datetime, timezone
 from app.helpers.power_helpers import power_retry_remaining
+from app.helpers.time_helpers import day_key, MAX_USAGE_INTERVAL_SECONDS
 
 logger = logging.getLogger(__name__)
 
@@ -14,6 +15,7 @@ class Observation:
     confirmed_online: bool = False
     last_monotonic: float | None = None
     last_day: str | None = None
+    usage_remainder_seconds: float = 0
     last_state: tuple | None = None
     dry_logged: bool = False
     last_checked_at: str | None = None
@@ -32,8 +34,7 @@ class AutomationManager:
         self.state={}
 
     def tick(self, now=None, monotonic=None):
-        now = now or datetime.now(timezone.utc)
-        monotonic = time.monotonic() if monotonic is None else monotonic
+        fixed_now, fixed_monotonic = now, monotonic
         for tv in self.tvs.list():
             st=self.state.setdefault(tv.tv_id,Observation())
             # Older Samsung adapters and test doubles only expose is_reachable.
@@ -44,6 +45,11 @@ class AutomationManager:
             else:
                 power_state='on' if self.samsung.is_reachable(tv) else 'off'
                 power_source='legacy'
+            # Timestamp each completed device probe, rather than the start of
+            # the whole scan (other devices and network timeouts take time too).
+            now = fixed_now or datetime.now(timezone.utc)
+            monotonic = time.monotonic() if fixed_monotonic is None else fixed_monotonic
+            previous_reachable = st.last_reachable
             reachable=(power_state=='on')
             confirmed_off=(power_state in ('standby', 'off'))
             st.last_power_state=power_state
@@ -66,14 +72,15 @@ class AutomationManager:
             # A schedule indicates permission, NOT actual consumption. Only
             # verified consecutive LAN samples are eligible for estimated usage.
             # Already recorded seconds remain in SQLite when the TV goes off.
-            # Only count contiguous confirmed-online intervals with a bounded duration.
-            # On slow polls/hibernation/startup/clock-day changes: do not backfill gaps.
-            from app.helpers.time_helpers import day_key
+            # Count real elapsed time, including normal network/poll overhead.
+            # Long unobserved pauses, restarts and day changes are not backfilled.
             local_day=day_key(now,tv.timezone)
             interval=(monotonic-st.last_monotonic) if st.last_monotonic is not None else 0
-            if (reachable and was_confirmed and st.confirmed_online and st.last_day==local_day
-                and 0 < interval <= self.settings.poll_seconds*1.6):
-                count=min(int(interval),self.settings.poll_seconds)
+            max_gap = min(MAX_USAGE_INTERVAL_SECONDS, max(60, self.settings.poll_seconds * 2))
+            contiguous = reachable and previous_reachable and was_confirmed and st.confirmed_online and st.last_day==local_day
+            if contiguous and 0 < interval <= max_gap:
+                elapsed = interval + st.usage_remainder_seconds
+                count = int(elapsed)
                 if count:
                     before=self.schedules.evaluate(tv,now)
                     try:
@@ -82,9 +89,15 @@ class AutomationManager:
                     except Exception as exc:
                         logger.exception('Nutzungsbuchung fehlgeschlagen %s: %s',tv.name,exc)
                         # Fail closed for commands: never toggle on DB/accounting errors.
+                        st.usage_remainder_seconds = 0
                         st.last_monotonic=monotonic
                         st.last_day=local_day
                         continue
+                st.usage_remainder_seconds = elapsed - count
+            else:
+                st.usage_remainder_seconds = 0
+                if contiguous and interval > max_gap:
+                    logger.warning('%s: Messlücke %.1fs zu groß für Nutzungsbuchung; zähle ab neuer ON-Messung weiter', tv.name, interval)
             if not was_confirmed and st.confirmed_online:
                 self.data.start_usage_session(tv.tv_id,now.isoformat())
             if was_confirmed and not st.confirmed_online:
