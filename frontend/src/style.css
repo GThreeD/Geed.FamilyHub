@@ -552,8 +552,13 @@ th {
   align-items: center;
   margin: 12px auto 24px;
 }
-.bonus-wheel {
+.bonus-wheel-control {
+  position: relative;
   width: min(100%, 320px);
+}
+.bonus-wheel {
+  display: block;
+  width: 100%;
   height: auto;
   cursor: default;
   touch-action: pan-y;
@@ -588,9 +593,22 @@ th {
   stroke-width: 13;
   stroke-linecap: round;
 }
-.bonus-wheel-handle {
+.bonus-wheel-handle-target {
+  position: absolute;
+  width: 44px;
+  height: 44px;
+  transform: translate(-50%, -50%);
   cursor: grab;
   touch-action: none;
+  -webkit-user-select: none;
+  user-select: none;
+  -webkit-tap-highlight-color: transparent;
+}
+.bonus-wheel-handle-target.dragging {
+  cursor: grabbing;
+}
+.bonus-wheel-handle {
+  pointer-events: none;
   fill: #6265e8;
   stroke: #fff;
   stroke-width: 4;

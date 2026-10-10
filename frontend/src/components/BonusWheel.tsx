@@ -11,8 +11,8 @@ const MAX_MINUTES = 12 * 60;
 const RADIUS = 94;
 const CIRCUMFERENCE = 2 * Math.PI * RADIUS;
 
-function angleFromPointer(event: PointerEvent<SVGSVGElement>): number {
-  const rect = event.currentTarget.getBoundingClientRect();
+function angleFromPointer(event: PointerEvent<HTMLDivElement>, wheel: SVGSVGElement): number {
+  const rect = wheel.getBoundingClientRect();
   const x = ((event.clientX - rect.left) / rect.width) * 240 - 120;
   const y = ((event.clientY - rect.top) / rect.height) * 240 - 120;
   return Math.atan2(y, x);
@@ -25,6 +25,7 @@ function normalizeAngleDelta(delta: number): number {
 }
 
 export default function BonusWheel({ minutes, onChange, disabled = false }: BonusWheelProps) {
+  const wheel = useRef<SVGSVGElement>(null);
   const drag = useRef<{ pointerId: number; angle: number; value: number } | null>(null);
   const [dragging, setDragging] = useState(false);
 
@@ -35,24 +36,22 @@ export default function BonusWheel({ minutes, onChange, disabled = false }: Bonu
   const knobY = 120 + RADIUS * Math.sin(angle);
   const formattedTime = `${String(Math.floor(minutes / 60)).padStart(2, '0')}:${String(minutes % 60).padStart(2, '0')}`;
 
-  function beginDrag(event: PointerEvent<SVGSVGElement>) {
-    if (
-      disabled ||
-      event.button !== 0 ||
-      drag.current !== null ||
-      !(event.target instanceof Element) ||
-      !event.target.classList.contains('bonus-wheel-handle')
-    )
-      return;
+  function beginDrag(event: PointerEvent<HTMLDivElement>) {
+    if (disabled || event.button !== 0 || drag.current !== null || !wheel.current) return;
     event.preventDefault();
     event.currentTarget.setPointerCapture(event.pointerId);
-    drag.current = { pointerId: event.pointerId, angle: angleFromPointer(event), value: minutes };
+    drag.current = {
+      pointerId: event.pointerId,
+      angle: angleFromPointer(event, wheel.current),
+      value: minutes,
+    };
     setDragging(true);
   }
 
-  function moveDrag(event: PointerEvent<SVGSVGElement>) {
-    if (!drag.current || drag.current.pointerId !== event.pointerId || disabled) return;
-    const nextAngle = angleFromPointer(event);
+  function moveDrag(event: PointerEvent<HTMLDivElement>) {
+    if (!drag.current || drag.current.pointerId !== event.pointerId || disabled || !wheel.current)
+      return;
+    const nextAngle = angleFromPointer(event, wheel.current);
     const delta = normalizeAngleDelta(nextAngle - drag.current.angle);
     // Store the unrounded fractional value, so tiny movements accumulate smoothly.
     const rawValue = Math.max(
@@ -63,7 +62,7 @@ export default function BonusWheel({ minutes, onChange, disabled = false }: Bonu
     onChange(Math.round(rawValue));
   }
 
-  function endDrag(event: PointerEvent<SVGSVGElement>) {
+  function endDrag(event: PointerEvent<HTMLDivElement>) {
     if (!drag.current || drag.current.pointerId !== event.pointerId) return;
     drag.current = null;
     setDragging(false);
@@ -93,49 +92,60 @@ export default function BonusWheel({ minutes, onChange, disabled = false }: Bonu
 
   return (
     <div className="bonus-wheel-wrap">
-      <svg
-        className={`bonus-wheel${dragging ? ' dragging' : ''}`}
-        viewBox="0 0 240 240"
-        role="slider"
-        tabIndex={disabled ? -1 : 0}
-        aria-label="Bonuszeit in Minuten"
-        aria-valuemin={0}
-        aria-valuemax={MAX_MINUTES}
-        aria-valuenow={minutes}
-        aria-valuetext={`${Math.floor(minutes / 60)} Stunden und ${minutes % 60} Minuten`}
-        aria-disabled={disabled}
-        onPointerDown={beginDrag}
-        onPointerMove={moveDrag}
-        onPointerUp={endDrag}
-        onPointerCancel={endDrag}
-        onLostPointerCapture={(event) => {
-          // Ignore capture changes bubbling from a child with implicit touch capture.
-          if (event.target === event.currentTarget) endDrag(event);
-        }}
-        onDragStart={(event) => event.preventDefault()}
-        onKeyDown={onKeyboard}
-      >
-        <circle cx="120" cy="120" r="109" className="bonus-wheel-background" />
-        <circle cx="120" cy="120" r={RADIUS} className="bonus-wheel-track" />
-        <circle
-          cx="120"
-          cy="120"
-          r={RADIUS}
-          className="bonus-wheel-progress"
-          strokeDasharray={`${fraction * CIRCUMFERENCE} ${CIRCUMFERENCE}`}
-          transform="rotate(-90 120 120)"
+      <div className="bonus-wheel-control">
+        <svg
+          ref={wheel}
+          className={`bonus-wheel${dragging ? ' dragging' : ''}`}
+          viewBox="0 0 240 240"
+          role="slider"
+          tabIndex={disabled ? -1 : 0}
+          aria-label="Bonuszeit in Minuten"
+          aria-valuemin={0}
+          aria-valuemax={MAX_MINUTES}
+          aria-valuenow={minutes}
+          aria-valuetext={`${Math.floor(minutes / 60)} Stunden und ${minutes % 60} Minuten`}
+          aria-disabled={disabled}
+          onDragStart={(event) => event.preventDefault()}
+          onKeyDown={onKeyboard}
+        >
+          <circle cx="120" cy="120" r="109" className="bonus-wheel-background" />
+          <circle cx="120" cy="120" r={RADIUS} className="bonus-wheel-track" />
+          <circle
+            cx="120"
+            cy="120"
+            r={RADIUS}
+            className="bonus-wheel-progress"
+            strokeDasharray={`${fraction * CIRCUMFERENCE} ${CIRCUMFERENCE}`}
+            transform="rotate(-90 120 120)"
+          />
+          <circle cx={knobX} cy={knobY} r="11" className="bonus-wheel-handle" />
+          <text x="120" y="101" className="bonus-wheel-label" textAnchor="middle">
+            Bonuszeit
+          </text>
+          <text x="120" y="135" className="bonus-wheel-value" textAnchor="middle">
+            {formattedTime}
+          </text>
+          <text x="120" y="155" className="bonus-wheel-label" textAnchor="middle">
+            Stunden : Minuten
+          </text>
+        </svg>
+        <div
+          className={`bonus-wheel-handle-target${dragging ? ' dragging' : ''}`}
+          data-no-swipe
+          aria-hidden="true"
+          style={{
+            left: `${(knobX / 240) * 100}%`,
+            top: `${(knobY / 240) * 100}%`,
+            pointerEvents: disabled ? 'none' : undefined,
+          }}
+          onPointerDown={beginDrag}
+          onPointerMove={moveDrag}
+          onPointerUp={endDrag}
+          onPointerCancel={endDrag}
+          onLostPointerCapture={endDrag}
+          onDragStart={(event) => event.preventDefault()}
         />
-        <circle cx={knobX} cy={knobY} r="11" className="bonus-wheel-handle" />
-        <text x="120" y="101" className="bonus-wheel-label" textAnchor="middle">
-          Bonuszeit
-        </text>
-        <text x="120" y="135" className="bonus-wheel-value" textAnchor="middle">
-          {formattedTime}
-        </text>
-        <text x="120" y="155" className="bonus-wheel-label" textAnchor="middle">
-          Stunden : Minuten
-        </text>
-      </svg>
+      </div>
       <p className="muted small bonus-wheel-help">
         Am Griff drehen · 1 Umdrehung = 1 Stunde · weiterdrehen für mehr
       </p>
