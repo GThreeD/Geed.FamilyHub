@@ -39,8 +39,8 @@ class Tests(unittest.TestCase):
     def test_bonus_and_quota(self):
         result=self.sched.evaluate(self.tv,self.now)
         self.assertFalse(result['allowed'])
-        self.sched.add_bonus('anessa',10,self.now+timedelta(days=1))
-        result=self.sched.evaluate(self.tv,datetime.now(timezone.utc))
+        self.sched.add_bonus('anessa',10,now=self.now)
+        result=self.sched.evaluate(self.tv,self.now)
         self.assertGreater(result['bonus_remaining_seconds'],0)
         self.sched.add_usage(self.tv,5,self.now,'bonus')
         total=self.data.usage_totals('anessa','2026-10-09','2026-W41')

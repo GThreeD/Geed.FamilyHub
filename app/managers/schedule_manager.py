@@ -4,7 +4,7 @@ from datetime import date
 from zoneinfo import ZoneInfo
 from datetime import datetime, timedelta, timezone
 from app.helpers.time_helpers import day_key, week_key, inside_window
-from app.models.schemas import ValidationError
+from app.models.schemas import ValidationError, DAYS
 
 class ScheduleManager:
     def __init__(self, data):
@@ -42,14 +42,42 @@ class ScheduleManager:
                 'used_week_seconds':usage['week'],'within_schedule':scheduled,
                 'schedule_exception':exception['name'] if exception else None}
 
-    def add_bonus(self, tv_id: str, minutes: int, expires_at: datetime):
+    def bonus_expiry(self, tv, minutes: int, now: datetime):
+        local = now.astimezone(ZoneInfo(tv.timezone))
+        midnight = (local + timedelta(days=1)).replace(hour=0, minute=0, second=0, microsecond=0)
+        exception = self.data.schedule_exception_for_date(tv.tv_id, local.date().isoformat())
+        windows = json.loads(exception['windows_json']) if exception else tv.schedule[DAYS[local.weekday()]]
+        if len(windows) <= 1:
+            return midnight.astimezone(timezone.utc)
+        # Bonus between windows starts immediately; within a window it extends its end.
+        base = local.astimezone(timezone.utc)
+        next_start = midnight.astimezone(timezone.utc)
+        for start, end in windows:
+            start_at = local.replace(hour=int(start[:2]), minute=int(start[3:]), second=0, microsecond=0)
+            end_at = local.replace(hour=int(end[:2]), minute=int(end[3:]), second=0, microsecond=0)
+            if start_at <= local < end_at:
+                base = end_at.astimezone(timezone.utc)
+            elif start_at > local:
+                next_start = start_at.astimezone(timezone.utc)
+                break
+        return min(base + timedelta(minutes=minutes), next_start, midnight.astimezone(timezone.utc))
+
+    def add_bonus(self, tv_id: str, minutes: int, expires_at: datetime | None = None, now: datetime | None = None):
         if type(minutes) is not int or not 1 <= minutes <= 720:
             raise ValidationError('Bonus: 1 bis 720 ganze Minuten')
-        now = datetime.now(timezone.utc)
-        if expires_at.tzinfo is None or expires_at <= now or expires_at > now + timedelta(days=7):
-            raise ValidationError('Ablauf muss in den naechsten 7 Tagen liegen (mit Zeitzone)')
-        self.data.grant_bonus(tv_id,minutes*60,expires_at.astimezone(timezone.utc).isoformat(),now.isoformat())
-        self.data.log_event(tv_id,now.isoformat(),'bonus_granted',f'{minutes} min bis {expires_at.isoformat()}')
+        now = now or datetime.now(timezone.utc)
+        from app.managers.tv_manager import TVManager
+        tv = TVManager(self.data).get(tv_id)
+        if tv is None:
+            raise ValidationError('TV nicht gefunden')
+        expiry = self.bonus_expiry(tv, minutes, now)
+        if expires_at is not None:
+            if expires_at.tzinfo is None or expires_at <= now:
+                raise ValidationError('Ablauf muss in der Zukunft liegen (mit Zeitzone)')
+            # Older clients may request seven days; server policy always takes precedence.
+            expiry = min(expiry, expires_at.astimezone(timezone.utc))
+        self.data.grant_bonus(tv_id,minutes*60,expiry.isoformat(),now.astimezone(timezone.utc).isoformat())
+        self.data.log_event(tv_id,now.isoformat(),'bonus_granted',f'{minutes} min bis {expiry.isoformat()}')
 
     def add_usage(self, tv, seconds: int, now: datetime, reason: str):
         if not 0 < seconds <= 60:

@@ -25,8 +25,7 @@ export default function BonusEditor({ tvId, status, minutes, onChange, canEdit, 
     try {
       await act(async () => {
         try {
-          const expiresAt = new Date(Date.now() + 7 * 24 * 60 * 60000).toISOString();
-          await BonusService.grant(tvId, minutes, expiresAt);
+          await BonusService.grant(tvId, minutes);
           setRevision((value) => value + 1);
         } catch (reason) {
           setError((reason as Error).message);
@@ -56,6 +55,10 @@ export default function BonusEditor({ tvId, status, minutes, onChange, canEdit, 
       <div className="note">
         Aktuelles Bonusguthaben: {Math.ceil((status?.bonus_remaining_seconds || 0) / 60)} Minuten
       </div>
+      <p className="muted small">
+        Bonus gilt nur heute. Bei mehreren Zeitfenstern gilt er für das aktuelle Fenster
+        einschließlich der Bonusverlängerung, höchstens bis zum nächsten Fenster.
+      </p>
       {tvId && (
         <BonusHistory
           key={tvId}

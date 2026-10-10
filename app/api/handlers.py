@@ -64,10 +64,10 @@ class TVApi:
         self.schedules.locks.clear(tv_id)
         return {'ok':True}
 
-    def add_bonus(self,tv_id,minutes,expires_at):
+    def add_bonus(self,tv_id,minutes,expires_at=None):
         if self.tvs.get(tv_id) is None:
             raise ValidationError('TV nicht gefunden')
-        self.schedules.add_bonus(tv_id,minutes,datetime.fromisoformat(expires_at))
+        self.schedules.add_bonus(tv_id,minutes,datetime.fromisoformat(expires_at) if expires_at is not None else None)
         return self.get_status(tv_id)
 
     def list_bonus(self, tv_id):

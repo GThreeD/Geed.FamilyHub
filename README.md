@@ -119,3 +119,11 @@ Die v2.3-Oberfläche bietet Dashboard, TV-Zeitpläne, Limits, Bonus, Einstellung
 - Neue EF-Core-artige Migrationen `UsageSessions` und `TemporaryTvLocks` (insgesamt sechs).
 - PIN-/Muster-Authentifizierung und CSRF gelten auch für neue API-Endpunkte.
 - Bereits bestehende Nutzungszeit kann nicht rückwirkend in Sitzungen aufgeteilt werden.
+
+Bonuszeit gilt in der Zeitzone des Fernsehers nur bis zum Ende des aktuellen Tages.
+Bei mehreren Zeitfenstern an diesem Tag verlängert die Gutschrift das aktuelle
+Fenster um die vergebenen Minuten (z. B. 05–10 Uhr + 30 Minuten bis 10:30 Uhr),
+höchstens bis zum nächsten Fenster oder bis Mitternacht. Zwischen Fenstern
+beginnt die Bonuszeit sofort und läuft für die vergebenen Minuten. Zeitplan-Ausnahmen
+werden dabei berücksichtigt. Ein älterer API-Client kann über `expires_at` ein
+früheres Ablaufdatum angeben, aber diese Grenzen nicht verlängern.

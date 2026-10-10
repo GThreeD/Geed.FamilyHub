@@ -146,9 +146,9 @@ class HttpApi:
                         limit=int(parse_qs(query).get('limit',['100'])[0]);return self.reply(outer.facade.get_events(tv_id,limit))
                     if parts[3]=='bonus' and method=='POST':
                         outer.auth.require(user,'control')
-                        if not isinstance(body,dict) or set(body)!={'minutes','expires_at'}:
-                            raise ValidationError('minutes und expires_at erforderlich')
-                        return self.reply(outer.facade.add_bonus(tv_id,body['minutes'],body['expires_at']))
+                        if not isinstance(body,dict) or 'minutes' not in body or not set(body).issubset({'minutes','expires_at'}):
+                            raise ValidationError('minutes erforderlich; expires_at optional')
+                        return self.reply(outer.facade.add_bonus(tv_id,body['minutes'],body.get('expires_at')))
                 if len(parts)==3 and parts[:2]==['api','tvs'] and method=='DELETE':
                     outer.auth.require(user,'users')
                     return self.reply(outer.facade.delete_tv(parts[2]))
